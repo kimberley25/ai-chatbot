@@ -6,6 +6,7 @@ Handles session lifecycle, expiration, and cleanup.
 from datetime import datetime, timedelta
 from flask import session
 import uuid
+from config import SESSION_LIFETIME_HOURS
 
 
 class SessionManager:
