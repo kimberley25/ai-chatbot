@@ -1,6 +1,7 @@
-from flask import Flask, render_template, request, jsonify, session
+from flask import Flask, render_template, request, jsonify, session, g
 from openai import OpenAI
 import uuid
+from datetime import timedelta
 
 from config import (
     OPENAI_API_KEY,
@@ -8,7 +9,12 @@ from config import (
     FLASK_HOST,
     FLASK_PORT,
     FLASK_DEBUG,
-    SYSTEM_PROMPT
+    SYSTEM_PROMPT,
+    SESSION_PERMANENT,
+    SESSION_LIFETIME_HOURS,
+    SESSION_COOKIE_SECURE,
+    SESSION_COOKIE_HTTPONLY,
+    SESSION_COOKIE_SAMESITE
 )
 from utils.storage import (
     save_conversation,
@@ -17,11 +23,39 @@ from utils.storage import (
     delete_conversation as storage_delete_conversation,
     save_escalation
 )
+from utils.session_manager import session_manager
 
 app = Flask(__name__)
+
+# Configure Flask session
 app.secret_key = FLASK_SECRET_KEY
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=SESSION_LIFETIME_HOURS)
+app.config['SESSION_COOKIE_SECURE'] = SESSION_COOKIE_SECURE
+app.config['SESSION_COOKIE_HTTPONLY'] = SESSION_COOKIE_HTTPONLY
+app.config['SESSION_COOKIE_SAMESITE'] = SESSION_COOKIE_SAMESITE
+
 client = OpenAI(api_key=OPENAI_API_KEY)
 chat_sessions = {}
+
+
+@app.before_request
+def before_request():
+    """Initialize session before each request"""
+    # Initialize session if needed
+    session_manager.init_session()
+    
+    # Check if session is valid
+    if not session_manager.is_session_valid():
+        # Session expired - clear it
+        session_manager.clear_session()
+        session_manager.init_session()
+    
+    # Make session permanent if configured
+    if SESSION_PERMANENT:
+        session.permanent = True
+    
+    # Store session manager in g for easy access
+    g.session_manager = session_manager
 
 
 @app.route('/')
@@ -41,7 +75,7 @@ def start_session():
         # Load existing conversation
         conv_data = load_conversation(conversation_id)
         if conv_data:
-            session['conversation_id'] = conversation_id
+            session_manager.set_conversation(conversation_id)
             # Load into memory cache
             if conversation_id not in chat_sessions:
                 chat_sessions[conversation_id] = {
@@ -59,7 +93,7 @@ def start_session():
     
     # Create new conversation
     conversation_id = str(uuid.uuid4())
-    session['conversation_id'] = conversation_id
+    session_manager.set_conversation(conversation_id)
     
     # Initialize conversation with system prompt
     chat_sessions[conversation_id] = {
@@ -83,10 +117,13 @@ def send_message():
     """Handle incoming chat messages"""
     data = request.json
     user_message = data.get('message', '').strip()
-    conversation_id = session.get('conversation_id')
+    conversation_id = session_manager.get_conversation_id()
     
     if not conversation_id or not user_message:
         return jsonify({'success': False, 'error': 'Invalid request'}), 400
+    
+    # Extend session on activity
+    session_manager.extend_session()
     
     # Get or load session from file if not in memory
     if conversation_id not in chat_sessions:
@@ -157,7 +194,7 @@ def send_message():
 def escalate_to_human():
     """Escalate conversation to human support"""
     data = request.json
-    conversation_id = session.get('conversation_id')
+    conversation_id = session_manager.get_conversation_id()
     reason = data.get('reason', 'Customer requested human assistance')
     contact_info = data.get('contact_info', {})
     
@@ -187,7 +224,7 @@ def escalate_to_human():
 @app.route('/api/get_history', methods=['GET'])
 def get_history():
     """Get conversation history for current session"""
-    conversation_id = session.get('conversation_id')
+    conversation_id = session_manager.get_conversation_id()
     
     if not conversation_id:
         return jsonify({'success': False, 'error': 'No active conversation'}), 400
@@ -232,13 +269,32 @@ def delete_conversation():
         if conversation_id in chat_sessions:
             del chat_sessions[conversation_id]
         
-        # If this was the active conversation, clear session
-        if session.get('conversation_id') == conversation_id:
-            session.pop('conversation_id', None)
+        # If this was the active conversation, clear it from session
+        if session_manager.get_conversation_id() == conversation_id:
+            session_manager.clear_conversation()
         
         return jsonify({'success': True, 'message': 'Conversation deleted'})
     else:
         return jsonify({'success': False, 'error': 'Conversation not found'}), 404
+
+
+@app.route('/api/session_info', methods=['GET'])
+def get_session_info():
+    """Get current session information"""
+    return jsonify({
+        'success': True,
+        'session': session_manager.get_session_info()
+    })
+
+
+@app.route('/api/end_session', methods=['POST'])
+def end_session():
+    """End current session"""
+    session_manager.clear_session()
+    return jsonify({
+        'success': True,
+        'message': 'Session ended'
+    })
 
 
 @app.route('/health')
