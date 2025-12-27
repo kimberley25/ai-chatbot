@@ -25,6 +25,9 @@ class ChatApp {
         this.modalClose = document.getElementById('modalClose');
         this.cancelEscalation = document.getElementById('cancelEscalation');
         this.suggestions = document.querySelector('.suggestions');
+        this.discoveryContainer = document.getElementById('discoveryContainer');
+        this.discoveryChips = document.getElementById('discoveryChips');
+        this.discoveryLabel = document.getElementById('discoveryLabel');
         
         // Event listeners
         this.setupEventListeners();
@@ -72,6 +75,8 @@ class ChatApp {
                 this.closeEscalationModal();
             }
         });
+        
+        // Discovery chips are handled via click events on individual chips
     }
     
     setupTextareaAutoResize() {
@@ -113,6 +118,11 @@ class ChatApp {
                         if (this.suggestions) {
                             this.suggestions.style.display = 'none';
                         }
+                        // Check if the last message from assistant is a discovery question
+                        const lastAssistantMessage = data.messages.filter(m => m.role === 'assistant').pop();
+                        if (lastAssistantMessage) {
+                            this.checkForDiscoveryQuestion(lastAssistantMessage.content);
+                        }
                     }
                     
                     if (data.escalated) {
@@ -140,6 +150,8 @@ class ChatApp {
                 if (data.welcome_message) {
                     this.messages.innerHTML = '';
                     this.addMessage('assistant', data.welcome_message);
+                    // Check if welcome message is a discovery question
+                    this.checkForDiscoveryQuestion(data.welcome_message);
                 }
                 
                 // Show suggestions for new sessions
@@ -168,8 +180,11 @@ class ChatApp {
                 this.isEscalated = false;
                 
                 // Clear messages and show welcome
+                const welcomeMsg = 'Welcome to Strength Club! I\'m here if you have any questions about training, nutrition, or coaching. What can I help you with today?';
                 this.messages.innerHTML = '';
-                this.addMessage('assistant', 'Welcome to Strength Club! I\'m here if you have any questions about training, nutrition, or coaching. What can I help you with today?');
+                this.addMessage('assistant', welcomeMsg);
+                // Check if welcome message is a discovery question
+                this.checkForDiscoveryQuestion(welcomeMsg);
                 
                 // Show suggestions for new chat
                 if (this.suggestions) {
@@ -193,6 +208,9 @@ class ChatApp {
         if (this.suggestions) {
             this.suggestions.style.display = 'none';
         }
+        
+        // Hide discovery chips when sending message
+        this.hideDiscoveryChips();
         
         // Add user message to UI
         this.addMessage('user', message);
@@ -224,6 +242,12 @@ class ChatApp {
                     this.conversationId = data.session_id;
                     sessionStorage.setItem('conversation_id', this.conversationId);
                 }
+                
+                // Check if bot is asking a discovery question and show chips
+                // Use setTimeout to ensure DOM is fully updated
+                setTimeout(() => {
+                    this.checkForDiscoveryQuestion(data.response);
+                }, 100);
                 
                 // Check for escalation
                 if (data.escalation_needed) {
@@ -383,6 +407,288 @@ class ChatApp {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+    
+    checkForDiscoveryQuestion(botMessage) {
+        const message = botMessage.toLowerCase();
+        
+        // Training experience question - check FIRST (most specific patterns)
+        if (message.includes('training experience') || 
+            message.includes('experience level') || 
+            message.includes('what is your experience') || 
+            message.includes('describe your training experience') ||
+            message.includes('let me know your training experience') ||
+            message.includes('are you a beginner') ||
+            message.includes('beginner, intermediate') ||
+            message.includes('advanced/competitive') ||
+            message.includes('advanced or competitive')) {
+            this.showDiscoveryChips('What is your training experience level?', [
+                { value: 'Beginner', text: 'Beginner' },
+                { value: 'Intermediate', text: 'Intermediate' },
+                { value: 'Advanced / Competitive', text: 'Advanced / Competitive' }
+            ]);
+            return;
+        }
+        
+        // Primary goal question - be very specific to avoid false matches
+        // Only match when explicitly asking about goals, not when goal is mentioned in context
+        if (message.includes('primary goal') || 
+            message.includes('what is your goal') ||
+            message.includes('what\'s your goal') ||
+            (message.includes('what') && message.includes('goal') && 
+             (message.includes('nutrition coaching') || message.includes('strength') || 
+              message.includes('powerlifting performance') || message.includes('competition preparation')) &&
+             !message.includes('training experience') && !message.includes('experience level'))) {
+            this.showDiscoveryChips('What is your primary goal?', [
+                { value: 'Nutrition Coaching (fat loss/muscle gain)', text: 'Nutrition Coaching (fat loss/muscle gain)' },
+                { value: 'Strength / powerlifting performance', text: 'Strength / powerlifting performance' },
+                { value: 'Competition preparation', text: 'Competition preparation' }
+            ]);
+            return;
+        }
+        
+        // Age question detection
+        if (message.includes('age range') || 
+            message.includes('how old are you') ||
+            message.includes('how old') || 
+            message.includes('can i ask how old') ||
+            (message.includes('age') && (message.includes('what') || message.includes('tell me') || message.includes('let me know') || message.includes('can i ask')))) {
+            this.showDiscoveryChips('What is your age range?', [
+                { value: 'Under 18', text: 'Under 18' },
+                { value: '18-29', text: '18-29' },
+                { value: '30-39', text: '30-39' },
+                { value: '40+', text: '40+' }
+            ]);
+            return;
+        }
+        
+        // Check-in frequency question (for Online Coaching and Nutrition) - check FIRST before coaching preference
+        // Check for weekly/fortnightly patterns first, then exclude if it's a recommendation
+        if ((message.includes('weekly or fortnightly') ||
+             message.includes('fortnightly or weekly') ||
+             message.includes('prefer weekly or fortnightly') ||
+             (message.includes('weekly') && message.includes('fortnightly') && 
+              (message.includes('prefer') || message.includes('would you') || message.includes('how often'))) ||
+             (message.includes('how often') && (message.includes('weekly') || message.includes('fortnightly'))) ||
+             ((message.includes('check') && (message.includes('in') || message.includes('-in'))) && 
+              (message.includes('weekly') || message.includes('fortnightly') || message.includes('frequency')))) &&
+            !message.includes('would be a perfect fit') &&
+            !message.includes('pricing') &&
+            !message.includes('per week') &&
+            !message.includes('next step') &&
+            !message.includes('recommend') &&
+            !message.includes('perfect fit')) {
+            this.showDiscoveryChips('How often would you like check-ins?', [
+                { value: 'Weekly check-ins', text: 'Weekly' },
+                { value: 'Fortnightly check-ins', text: 'Fortnightly' }
+            ]);
+            return;
+        }
+        
+        // Coaching preference question - make sure it doesn't match check-in frequency questions
+        // Check if message asks about coaching preference but NOT check-in frequency
+        const hasWeeklyFortnightly = message.includes('weekly') || message.includes('fortnightly');
+        const hasCheckIn = message.includes('check-in') || message.includes('check in');
+        
+        // Allow coaching preference even after explaining Full Athlete Package (which includes pricing)
+        const isExplainingPackage = message.includes('full athlete package') && 
+                                     (message.includes('includes') || message.includes('pricing') || message.includes('per week'));
+        
+        if (!hasWeeklyFortnightly && !hasCheckIn &&
+            (message.includes('coaching preference') || 
+             message.includes('open to recommendations') ||
+             (message.includes('would you prefer') && 
+              (message.includes('online coaching') || message.includes('in-person coaching')) &&
+              (message.includes('online coaching') || message.includes('in-person coaching') || message.includes('recommendations'))) ||
+             (message.includes('prefer online coaching')) ||
+             (message.includes('prefer in-person')) ||
+             (message.includes('online coaching') && message.includes('in-person coaching') && 
+              (message.includes('prefer') || message.includes('recommendation'))) ||
+             (isExplainingPackage && (message.includes('would you prefer') || message.includes('coaching preference'))))) {
+            this.showDiscoveryChips('What is your coaching preference?', [
+                { value: 'Online coaching', text: 'Online coaching' },
+                { value: 'In-person coaching', text: 'In-person coaching' },
+                { value: 'Not sure / open to recommendations', text: 'Not sure / open to recommendations' }
+            ]);
+            return;
+        }
+        // Don't show chips if bot is making a recommendation/plan suggestion
+        if (!message.includes('would be a perfect fit') &&
+            !message.includes('pricing') &&
+            !message.includes('per week') &&
+            !message.includes('next step') &&
+            !message.includes('recommend') &&
+            !message.includes('perfect fit') &&
+            (message.includes('weekly or fortnightly') ||
+             message.includes('fortnightly or weekly') ||
+             message.includes('prefer weekly or fortnightly') ||
+             (message.includes('how often would you like') && !message.includes('next step')) ||
+             ((message.includes('check') && (message.includes('in') || message.includes('-in'))) && 
+              (message.includes('weekly') || message.includes('fortnightly') || message.includes('frequency')) &&
+              !message.includes('pricing') && !message.includes('per week')) ||
+             ((message.includes('weekly') && message.includes('fortnightly')) && 
+              (message.includes('prefer') || message.includes('would you') || message.includes('how often')) &&
+              !message.includes('pricing')) ||
+             (message.includes('how often') && (message.includes('weekly') || message.includes('fortnightly')) &&
+              !message.includes('pricing') && !message.includes('per week')))) {
+            this.showDiscoveryChips('How often would you like check-ins?', [
+                { value: 'Weekly check-ins', text: 'Weekly' },
+                { value: 'Fortnightly check-ins', text: 'Fortnightly' }
+            ]);
+            return;
+        }
+        
+        // Services explanation - show interest chips after explaining what we offer
+        if ((message.includes('services') || message.includes('offer') || message.includes('coaching options')) &&
+            (message.includes('online coaching') || message.includes('club coaching') || 
+             message.includes('nutrition coaching') || message.includes('1-to-1') ||
+             message.includes('full athlete'))) {
+            this.showDiscoveryChips('What are you interested in?', [
+                { value: 'I want to get stronger', text: 'Build Strength' },
+                { value: 'I want to compete', text: 'Competition Preparation' },
+                { value: 'I need help with nutrition', text: 'Nutrition Coaching' }
+            ]);
+            return;
+        }
+        
+        // Nutrition goal question (Flow 3: Nutrition)
+        if (message.includes('nutrition goal') || 
+            message.includes('what is your nutrition goal') ||
+            (message.includes('nutrition') && (message.includes('goal') || message.includes('aiming for'))) ||
+            (message.includes('aiming for') && (message.includes('muscle gain') || message.includes('fat loss') || message.includes('maintain'))) ||
+            ((message.includes('muscle gain') || message.includes('fat loss') || message.includes('maintain')) &&
+             (message.includes('what') || message.includes('which') || message.includes('tell me') || message.includes('are you') || message.includes('aiming'))) ||
+            (message.includes('primary goal') && message.includes('looking for') && 
+             (message.includes('fat loss') || message.includes('muscle gain')))) {
+            this.showDiscoveryChips('What is your primary goal?', [
+                { value: 'Build muscle', text: 'Build muscle' },
+                { value: 'Fat loss / body recomposition', text: 'Fat loss / body recomposition' },
+                { value: 'Maintain weight / healthier habits', text: 'Maintain weight / healthier habits' }
+            ]);
+            return;
+        }
+        
+        // Training context question (Flow 3: Nutrition - optional)
+        if ((message.includes('training context') || 
+             message.includes('currently training') ||
+             message.includes('are you training') ||
+             message.includes('are you currently training') ||
+             message.includes('what is your training context') ||
+             (message.includes('training') && (message.includes('currently') || message.includes('context')) &&
+              !message.includes('experience') && !message.includes('level')))) {
+            this.showDiscoveryChips('What is your training context?', [
+                { value: 'Currently training', text: 'Currently training' },
+                { value: 'Not currently training', text: 'Not currently training' },
+                { value: 'Planning to start training', text: 'Planning to start training' }
+            ]);
+            return;
+        }
+        
+        // Competed before question (Flow 2: Competition)
+        if (message.includes('competed before') || 
+            message.includes('have you competed') ||
+            message.includes('have you ever competed') ||
+            message.includes('competed in a powerlifting') ||
+            message.includes('competed in powerlifting') ||
+            (message.includes('competition') && message.includes('before') && 
+             (message.includes('have') || message.includes('ever') || message.includes('you')))) {
+            this.showDiscoveryChips('Have you competed before?', [
+                { value: 'Yes', text: 'Yes' },
+                { value: 'No', text: 'No' }
+            ]);
+            return;
+        }
+        
+        // Package type question (Flow 2: Competition - training only vs full athlete)
+        // Only show if bot is asking about package choice, not if it's explaining/recommending
+        const isAskingPackage = message.includes('training only') ||
+                                 message.includes('training-only') ||
+                                 message.includes('full athlete package') ||
+                                 message.includes('would you like training only') ||
+                                 message.includes('would you like to choose') ||
+                                 message.includes('are you interested in the full athlete') ||
+                                 (message.includes('would you like') && 
+                                  (message.includes('training only') || message.includes('training-only') || message.includes('full athlete') || message.includes('package')) &&
+                                  !message.includes('coaching preference')) ||
+                                 (message.includes('choose') && 
+                                  (message.includes('training') || message.includes('package')) &&
+                                  (message.includes('or') || message.includes('full athlete'))) ||
+                                 ((message.includes('package') || message.includes('both')) &&
+                                  (message.includes('training') && message.includes('nutrition')) &&
+                                  (message.includes('which') || message.includes('what') || message.includes('would you') || message.includes('choose'))) ||
+                                 (message.includes('which') && (message.includes('package') || message.includes('training only') || message.includes('full athlete')));
+        
+        const isRecommending = message.includes('recommend') ||
+                               (message.includes('pricing') && !message.includes('would you like')) ||
+                               (message.includes('per week') && !message.includes('would you like')) ||
+                               (message.includes('includes') && !message.includes('would you like') && !message.includes('choose')) ||
+                               message.includes('would be a perfect fit');
+        
+        if (isAskingPackage && !isRecommending) {
+            this.showDiscoveryChips('What would you like?', [
+                { value: 'Training only', text: 'Training only' },
+                { value: 'Full Athlete Package (training + nutrition)', text: 'Full Athlete Package (training + nutrition)' }
+            ]);
+            return;
+        }
+        
+        // Hide chips if no discovery question detected
+        this.hideDiscoveryChips();
+    }
+    
+    showDiscoveryChips(label, options) {
+        this.discoveryLabel.textContent = label;
+        this.discoveryChips.innerHTML = '';
+        
+        options.forEach(option => {
+            const chip = document.createElement('button');
+            chip.className = 'discovery-chip';
+            chip.type = 'button';
+            chip.textContent = option.text;
+            chip.dataset.value = option.value;
+            
+            // Add click handler
+            chip.addEventListener('click', () => {
+                // Remove selected class from all chips
+                this.discoveryChips.querySelectorAll('.discovery-chip').forEach(c => {
+                    c.classList.remove('selected');
+                });
+                
+                // Add selected class to clicked chip
+                chip.classList.add('selected');
+                
+                // Submit the selected value after a brief delay for visual feedback
+                setTimeout(() => {
+                    this.submitDiscovery(option.value);
+                }, 150);
+            });
+            
+            this.discoveryChips.appendChild(chip);
+        });
+        
+        this.discoveryContainer.style.display = 'block';
+        this.messageInput.style.display = 'none';
+        
+        // Scroll to bottom to ensure chips are visible
+        this.scrollToBottom();
+    }
+    
+    hideDiscoveryChips() {
+        this.discoveryContainer.style.display = 'none';
+        this.messageInput.style.display = 'block';
+        this.discoveryChips.innerHTML = '';
+    }
+    
+    submitDiscovery(value) {
+        if (!value) {
+            return;
+        }
+        
+        // Send the selected value as a message
+        this.sendMessage(value);
+        
+        // Hide the chips
+        this.hideDiscoveryChips();
     }
 }
 

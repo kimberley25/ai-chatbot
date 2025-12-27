@@ -262,6 +262,74 @@ body {
     }
 }
 
+/* Discovery Chips Container */
+.discovery-container {
+    padding: 1.5rem;
+    border-top: 1px solid var(--border-color);
+    background-color: var(--bg-primary);
+    animation: slideUp 0.3s ease;
+}
+
+.discovery-wrapper {
+    max-width: 800px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.discovery-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.discovery-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: flex-start;
+}
+
+.discovery-chip {
+    padding: 0.75rem 1.25rem;
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    background-color: var(--bg-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    box-shadow: var(--shadow-sm);
+}
+
+.discovery-chip:hover {
+    background-color: var(--bg-secondary);
+    border-color: var(--primary-color);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.discovery-chip:active {
+    transform: translateY(0);
+}
+
+.discovery-chip.selected {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow-md);
+}
+
+.discovery-chip.selected:hover {
+    background-color: var(--primary-hover);
+    border-color: var(--primary-hover);
+}
+
 /* Input Container */
 .input-container {
     padding: 1.5rem;
@@ -550,6 +618,15 @@ body {
     
     .suggestion-btn {
         padding: 0.5rem 1rem;
+        font-size: 0.8125rem;
+    }
+    
+    .discovery-chips {
+        gap: 0.5rem;
+    }
+    
+    .discovery-chip {
+        padding: 0.625rem 1rem;
         font-size: 0.8125rem;
     }
 }
