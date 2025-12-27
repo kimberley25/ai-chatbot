@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chat</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #0b1220; color: #e6eaf2; }
+      .wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
+      .card { background: #121b2f; border: 1px solid #1f2a44; border-radius: 12px; padding: 16px; }
+      .row { display: flex; gap: 12px; }
+      .row input { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid #2a385c; background: #0f172a; color: #e6eaf2; }
+      .row button { padding: 12px 14px; border-radius: 10px; border: 1px solid #2a385c; background: #1b2a52; color: #e6eaf2; cursor: pointer; }
+      .row button:disabled { opacity: 0.6; cursor: not-allowed; }
+      #msgs { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+      .msg { padding: 10px 12px; border-radius: 12px; border: 1px solid #223155; background: #0f172a; white-space: pre-wrap; }
+      .msg.user { border-color: #2b4aa0; background: #0e1a36; }
+      .msg.assistant { border-color: #2b7a53; background: #0f231a; }
+      .meta { font-size: 12px; opacity: 0.8; margin-bottom: 10px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <div class="meta">
+          Status: <span id="status">starting…</span>
+        </div>
+        <ul id="msgs" aria-live="polite"></ul>
+        <div style="height: 12px"></div>
+        <div class="row">
+          <input id="input" placeholder="Type a message…" autocomplete="off" />
+          <button id="send">Send</button>
+        </div>
+      </div>
+    </div>
+    <script>
+      const statusEl = document.getElementById('status');
+      const msgsEl = document.getElementById('msgs');
+      const inputEl = document.getElementById('input');
+      const sendBtn = document.getElementById('send');
+
+      function addMsg(role, content) {
+        const li = document.createElement('li');
+        li.className = `msg ${role}`;
+        li.textContent = content;
+        msgsEl.appendChild(li);
+        li.scrollIntoView({ block: 'end' });
+      }
+
+      async function start() {
+        statusEl.textContent = 'starting session…';
+        const res = await fetch('/api/start_session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Failed to start session');
+        statusEl.textContent = 'ready';
+        if (data.welcome_message) addMsg('assistant', data.welcome_message);
+      }
+
+      async function send() {
+        const text = inputEl.value.trim();
+        if (!text) return;
+        inputEl.value = '';
+        addMsg('user', text);
+        sendBtn.disabled = true;
+        statusEl.textContent = 'thinking…';
+        try {
+          const res = await fetch('/api/send_message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: text }),
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error || 'Request failed');
+          addMsg('assistant', data.message);
+          statusEl.textContent = data.escalated ? 'escalated' : 'ready';
+        } catch (e) {
+          addMsg('assistant', `Error: ${e.message}`);
+          statusEl.textContent = 'error';
+        } finally {
+          sendBtn.disabled = false;
+          inputEl.focus();
+        }
+      }
+
+      sendBtn.addEventListener('click', send);
+      inputEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') send();
+      });
+
+      start().catch((e) => {
+        addMsg('assistant', `Startup error: ${e.message}`);
+        statusEl.textContent = 'error';
+      });
+    </script>
+  </body>
+</html>

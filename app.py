@@ -19,7 +19,7 @@ from config import (
 from utils.storage import (
     save_conversation,
     load_conversation,
-    list_conversations,
+    list_conversations as storage_list_conversations,
     delete_conversation as storage_delete_conversation,
     save_escalation
 )
@@ -34,7 +34,13 @@ app.config['SESSION_COOKIE_SECURE'] = SESSION_COOKIE_SECURE
 app.config['SESSION_COOKIE_HTTPONLY'] = SESSION_COOKIE_HTTPONLY
 app.config['SESSION_COOKIE_SAMESITE'] = SESSION_COOKIE_SAMESITE
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+if OPENAI_API_KEY:
+    client = OpenAI(api_key=OPENAI_API_KEY)
+else:
+    client = None
+
+# Ensure our session manager uses configured lifetime.
+session_manager.session_lifetime_hours = SESSION_LIFETIME_HOURS
 chat_sessions = {}
 
 
@@ -154,9 +160,15 @@ def send_message():
     })
     
     try:
+        if client is None:
+            return jsonify({
+                'success': False,
+                'error': 'Server is missing OPENAI_API_KEY configuration.'
+            }), 500
+
         # Get AI response
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model=OPENAI_MODEL or "gpt-4o",
             messages=chat_sessions[conversation_id]['messages'],
             temperature=0.7,
             max_tokens=500
@@ -201,12 +213,21 @@ def escalate_to_human():
     if not conversation_id:
         return jsonify({'success': False, 'error': 'No active conversation'}), 400
     
+    # Always record the escalation request, even if the conversation isn't loaded in memory.
+    save_escalation(conversation_id, reason, contact_info)
+
+    # Ensure we have the conversation loaded so we can mark it escalated + persist it.
+    if conversation_id not in chat_sessions:
+        conv_data = load_conversation(conversation_id)
+        if conv_data:
+            chat_sessions[conversation_id] = {
+                'messages': conv_data['messages'],
+                'escalated': conv_data.get('escalated', False)
+            }
+
     # Mark session as escalated
     if conversation_id in chat_sessions:
         chat_sessions[conversation_id]['escalated'] = True
-        
-        # Save escalation
-        save_escalation(conversation_id, reason, contact_info)
         
         # Save updated conversation
         save_conversation(
@@ -245,9 +266,9 @@ def get_history():
 
 
 @app.route('/api/list_conversations', methods=['GET'])
-def list_conversations():
+def api_list_conversations():
     """List all conversations"""
-    conversations = list_conversations()
+    conversations = storage_list_conversations()
     return jsonify({
         'success': True,
         'conversations': conversations

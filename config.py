@@ -6,7 +6,7 @@ load_dotenv()
 
 # OpenAI Configuration
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-OPENAI_MODEL = os.getenv('OPENAI_MODEL')
+OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4o')
 # OPENAI_TEMPERATURE = os.getenv('OPENAI_TEMPERATURE')
 # OPENAI_MAX_TOKENS = os.getenv('OPENAI_MAX_TOKENS')
 # OPENAI_FREQUENCY_PENALTY = os.getenv('OPENAI_FREQUENCY_PENALTY')
