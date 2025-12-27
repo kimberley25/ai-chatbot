@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strength Club - Virtual Assistant</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+</head>
+<body>
+    <div class="chat-container">
+        <!-- Main chat area -->
+        <main class="chat-main">
+            <!-- Header -->
+            <header class="chat-header">
+                <div class="header-left">
+                    <h1>Strength Club</h1>
+                </div>
+                <div class="header-right">
+                    <div class="session-indicator" id="sessionIndicator">
+                        <span class="session-status" id="sessionStatus">Active</span>
+                    </div>
+                    <button class="btn btn-secondary new-chat-btn" id="newChatBtn">
+                        New Chat
+                    </button>
+                </div>
+            </header>
+
+            <!-- Messages area -->
+            <div class="messages-container" id="messagesContainer">
+                <div class="messages" id="messages">
+                    <div class="message bot-message">
+                        <div class="message-avatar">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+                            </svg>
+                        </div>
+                        <div class="message-content">
+                            <div class="message-text">Welcome to Strength Club! I'm here if you have any questions about strength, coaching or nutrition. What can I help you with today?</div>
+                            <div class="message-time"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Typing indicator -->
+                <div class="typing-indicator" id="typingIndicator" style="display: none;">
+                    <div class="message bot-message">
+                        <div class="message-avatar">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+                            </svg>
+                        </div>
+                        <div class="message-content">
+                            <div class="typing-dots">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input area -->
+            <div class="input-container">
+                <form id="chatForm" class="chat-form">
+                    <div class="input-wrapper">
+                        <textarea 
+                            id="messageInput" 
+                            class="message-input" 
+                            placeholder="Type your message here..."
+                            rows="1"
+                            maxlength="2000"
+                        ></textarea>
+                        <button type="submit" class="send-button" id="sendButton" aria-label="Send message">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                            </svg>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </main>
+    </div>
+
+    <!-- Escalation Modal -->
+    <div class="modal-overlay" id="escalationModal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Connect with a Human Coach</h2>
+                <button class="modal-close" id="modalClose" aria-label="Close modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>We'd love to connect you with one of our coaches who can provide personalized guidance. Please share your contact information below.</p>
+                
+                <form id="escalationForm">
+                    <div class="form-group">
+                        <label for="escalationName">Name *</label>
+                        <input type="text" id="escalationName" name="name" required placeholder="Your name">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="escalationPhone">Phone Number *</label>
+                        <input type="tel" id="escalationPhone" name="phone" required placeholder="Your phone number">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="escalationGoal">Primary Goal</label>
+                        <select id="escalationGoal" name="goal">
+                            <option value="">Select a goal</option>
+                            <option value="nutrition">Nutrition Coaching</option>
+                            <option value="strength">Strength / Powerlifting</option>
+                            <option value="competition">Competition Preparation</option>
+                            <option value="general">General Inquiry</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="escalationPreference">Coaching Preference</label>
+                        <select id="escalationPreference" name="preference">
+                            <option value="">Select preference</option>
+                            <option value="online">Online Coaching</option>
+                            <option value="in-person">In-Person Coaching</option>
+                            <option value="not-sure">Not Sure</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="escalationReason">Reason for Escalation</label>
+                        <textarea id="escalationReason" name="reason" rows="3" placeholder="Tell us what you need help with..."></textarea>
+                    </div>
+                    
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" id="cancelEscalation">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Submit</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+</body>
+</html>
+

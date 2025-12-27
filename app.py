@@ -115,7 +115,7 @@ def start_session():
             "success": True,
             "conversation_id": conversation_id,
             "loaded": False,
-            "welcome_message": "Welcome to Strength Culture! I’m here if you have any questions about training, nutrition, or coaching. What can I help you with today?",
+            "welcome_message": "Welcome to Strength Club! I’m here if you have any questions about training, nutrition, or coaching. What can I help you with today?",
         }
     )
 
