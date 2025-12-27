@@ -5,6 +5,7 @@ from datetime import timedelta
 
 from config import (
     OPENAI_API_KEY,
+    OPENAI_MODEL,
     FLASK_SECRET_KEY,
     FLASK_HOST,
     FLASK_PORT,
@@ -121,7 +122,7 @@ def start_session():
 @app.route('/api/send_message', methods=['POST'])
 def send_message():
     """Handle incoming chat messages"""
-    data = request.json
+    data = request.json or {}
     user_message = data.get('message', '').strip()
     conversation_id = session_manager.get_conversation_id()
     
@@ -205,7 +206,7 @@ def send_message():
 @app.route('/api/escalate', methods=['POST'])
 def escalate_to_human():
     """Escalate conversation to human support"""
-    data = request.json
+    data = request.json or {}
     conversation_id = session_manager.get_conversation_id()
     reason = data.get('reason', 'Customer requested human assistance')
     contact_info = data.get('contact_info', {})
