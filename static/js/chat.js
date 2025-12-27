@@ -24,6 +24,7 @@ class ChatApp {
         this.escalationForm = document.getElementById('escalationForm');
         this.modalClose = document.getElementById('modalClose');
         this.cancelEscalation = document.getElementById('cancelEscalation');
+        this.suggestions = document.querySelector('.suggestions');
         
         // Event listeners
         this.setupEventListeners();
@@ -108,6 +109,10 @@ class ChatApp {
                         data.messages.forEach(msg => {
                             this.addMessage(msg.role, msg.content);
                         });
+                        // Hide suggestions if conversation has messages
+                        if (this.suggestions) {
+                            this.suggestions.style.display = 'none';
+                        }
                     }
                     
                     if (data.escalated) {
@@ -136,6 +141,11 @@ class ChatApp {
                     this.messages.innerHTML = '';
                     this.addMessage('assistant', data.welcome_message);
                 }
+                
+                // Show suggestions for new sessions
+                if (this.suggestions) {
+                    this.suggestions.style.display = 'flex';
+                }
             }
         } catch (error) {
             console.error('Error starting session:', error);
@@ -160,6 +170,11 @@ class ChatApp {
                 // Clear messages and show welcome
                 this.messages.innerHTML = '';
                 this.addMessage('assistant', 'Welcome to Strength Club! I\'m here if you have any questions about training, nutrition, or coaching. What can I help you with today?');
+                
+                // Show suggestions for new chat
+                if (this.suggestions) {
+                    this.suggestions.style.display = 'flex';
+                }
             }
         } catch (error) {
             console.error('Error starting new chat:', error);
@@ -167,11 +182,16 @@ class ChatApp {
         }
     }
     
-    async sendMessage() {
-        const message = this.messageInput.value.trim();
+    async sendMessage(messageText = null) {
+        const message = messageText || this.messageInput.value.trim();
         
         if (!message || this.isTyping || this.isEscalated) {
             return;
+        }
+        
+        // Hide suggestions after first message
+        if (this.suggestions) {
+            this.suggestions.style.display = 'none';
         }
         
         // Add user message to UI
@@ -367,7 +387,15 @@ class ChatApp {
 }
 
 // Initialize app when DOM is ready
+let chatApp;
 document.addEventListener('DOMContentLoaded', () => {
-    new ChatApp();
+    chatApp = new ChatApp();
 });
+
+// Global function for suggestion buttons
+function usePrompt(promptText) {
+    if (chatApp) {
+        chatApp.sendMessage(promptText);
+    }
+}
 
