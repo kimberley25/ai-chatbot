@@ -30,19 +30,7 @@
             <!-- Messages area -->
             <div class="messages-container" id="messagesContainer">
                 <div class="messages" id="messages">
-                    <div class="message bot-message">
-                        <div class="message-avatar">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path
-                                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" />
-                            </svg>
-                        </div>
-                        <div class="message-content">
-                            <div class="message-text">Welcome to Strength Club! I'm here if you have any questions about
-                                strength, coaching or nutrition. What can I help you with today?</div>
-                            <div class="message-time"></div>
-                        </div>
-                    </div>
+                    <!-- Initial welcome message will be populated by JavaScript -->
                 </div>
                 <div class="suggestions">
                     <button class="suggestion-btn" onclick="usePrompt('What services do you offer?')">Our Services</button>
@@ -50,15 +38,10 @@
                     <button class="suggestion-btn" onclick="usePrompt('I want to compete')">Competition Preparation</button>
                     <button class="suggestion-btn" onclick="usePrompt('I need help with nutrition')">Nutrition Coaching</button>
                 </div>
-                <!-- Typing indicator -->
+                <!-- Typing indicator - avatar populated by JavaScript -->
                 <div class="typing-indicator" id="typingIndicator" style="display: none;">
                     <div class="message bot-message">
-                        <div class="message-avatar">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path
-                                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" />
-                            </svg>
-                        </div>
+                        <div class="message-avatar" id="typingAvatar"></div>
                         <div class="message-content">
                             <div class="typing-dots">
                                 <span></span>
