@@ -17,7 +17,7 @@ from config import (
 from utils.storage import (
     save_conversation,
     load_conversation,
-    list_conversations,
+    list_conversations as get_all_conversations,  # Rename imported function
     delete_conversation as storage_delete_conversation,
     save_escalation,
 )
@@ -46,9 +46,11 @@ def before_request():
 
     # Check if session is valid
     if not session_manager.is_session_valid():
-        # Session expired - clear it
+        # Session expired - clear it and start fresh
         session_manager.clear_session()
         session_manager.init_session()
+        # Explicitly clear conversation_id to ensure fresh start
+        session_manager.clear_conversation()
 
     # Make session permanent if configured
     if SESSION_PERMANENT:
@@ -57,11 +59,9 @@ def before_request():
     # Store session manager in g for easy access
     g.session_manager = session_manager
 
-
 @app.route("/")
 def index():
-    """Render the main chat interface"""
-    return render_template("index.html")
+    return render_template("chat.html")
 
 
 @app.route("/api/start_session", methods=["POST"])
@@ -120,12 +120,19 @@ def start_session():
     )
 
 
-@app.route("/api/send_message", methods=["POST"])
+@app.route("/api/chat", methods=["POST"])
 def send_message():
     """Handle incoming chat messages"""
-    data = request.json
+    data = request.json or {}
     user_message = data.get("message", "").strip()
-    conversation_id = session_manager.get_conversation_id()
+
+    # Accept session_id from request, or use session manager as fallback
+    session_id = data.get("session_id")
+    if session_id:
+        conversation_id = session_id
+        session_manager.set_conversation(conversation_id)
+    else:
+        conversation_id = session_manager.get_conversation_id()
 
     if not conversation_id or not user_message:
         return jsonify({"success": False, "error": "Invalid request"}), 400
@@ -151,9 +158,9 @@ def send_message():
     if chat_sessions[conversation_id]["escalated"]:
         return jsonify(
             {
-                "success": True,
-                "message": "Your request has been escalated to our team. A representative will contact you shortly.",
-                "escalated": True,
+                "response": "Your request has been escalated to our team. A representative will contact you shortly.",
+                "escalation_needed": True,
+                "session_id": conversation_id,
             }
         )
 
@@ -187,7 +194,11 @@ def send_message():
         )
 
         return jsonify(
-            {"success": True, "message": bot_reply, "escalated": escalation_detected}
+            {
+                "response": bot_reply,
+                "escalation_needed": escalation_detected,
+                "session_id": conversation_id,
+            }
         )
 
     except Exception as e:
@@ -239,8 +250,8 @@ def get_history():
     if not conversation_id:
         return jsonify({"success": False, "error": "No active conversation"}), 400
 
+    # Try to get from memory cache first
     if conversation_id in chat_sessions:
-        # Return only user and assistant messages (not system)
         messages = [
             msg
             for msg in chat_sessions[conversation_id]["messages"]
@@ -254,14 +265,68 @@ def get_history():
             }
         )
 
+    # If not in memory, try to load from JSON file
+    conv_data = load_conversation(conversation_id)
+    if conv_data:
+        # Load into memory cache for future use
+        chat_sessions[conversation_id] = {
+            "messages": conv_data["messages"],
+            "escalated": conv_data.get("escalated", False),
+        }
+        messages = [msg for msg in conv_data["messages"] if msg["role"] != "system"]
+        return jsonify(
+            {
+                "success": True,
+                "messages": messages,
+                "escalated": conv_data.get("escalated", False),
+            }
+        )
+
+    # No conversation found
     return jsonify({"success": True, "messages": [], "escalated": False})
 
 
-@app.route("/api/list_conversations", methods=["GET"])
-def list_conversations():
-    """List all conversations"""
-    conversations = list_conversations()
+@app.route("/api/past-chats", methods=["GET"])
+def get_past_chats():
+    """List previous conversations for logged-in users"""
+    # Get all conversations
+    # TODO: When login is implemented, filter by user_id:
+    #   1. Add user_id to session when user logs in
+    #   2. Add user_id field to conversation data when saving
+    #   3. Create get_user_conversations(user_id) function in utils/storage.py
+    #   4. Filter conversations: user_id = session.get('user_id'); if user_id: conversations = get_user_conversations(user_id)
+    conversations = get_all_conversations()
+    
     return jsonify({"success": True, "conversations": conversations})
+
+@app.route("/api/new-chat", methods=["POST"])
+def new_chat():
+    """Start fresh conversation (clear session and create new chat)"""
+    # Clear current conversation from session
+    session_manager.clear_conversation()
+
+    # Create new conversation_id
+    conversation_id = str(uuid.uuid4())
+    session_manager.set_conversation(conversation_id)
+
+    # Initialize conversation with system prompt
+    chat_sessions[conversation_id] = {
+        "messages": [{"role": "system", "content": SYSTEM_PROMPT}],
+        "escalated": False,
+    }
+
+    # Save initial conversation
+    save_conversation(
+        conversation_id, chat_sessions[conversation_id]["messages"], False
+    )
+
+    return jsonify(
+        {
+            "success": True,
+            "conversation_id": conversation_id,
+            "message": "New chat started",
+        }
+    )
 
 
 @app.route("/api/delete_conversation", methods=["POST"])
