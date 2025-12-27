@@ -1,131 +1,27 @@
 from flask import Flask, render_template, request, jsonify, session
 from openai import OpenAI
 import uuid
-import json
-import os
-from datetime import datetime
-from dotenv import load_dotenv
 
-load_dotenv()
-
-app = Flask(__name__)
-app.secret_key = os.urandom(24)
-
-# Initialize OpenAI client
-client = OpenAI(
-    api_key=os.getenv('OPENAI_API_KEY')
+from config import (
+    OPENAI_API_KEY,
+    FLASK_SECRET_KEY,
+    FLASK_HOST,
+    FLASK_PORT,
+    FLASK_DEBUG,
+    SYSTEM_PROMPT
+)
+from utils.storage import (
+    save_conversation,
+    load_conversation,
+    list_conversations,
+    delete_conversation as storage_delete_conversation,
+    save_escalation
 )
 
-# Store active sessions in memory (in production, use Redis or database)
+app = Flask(__name__)
+app.secret_key = FLASK_SECRET_KEY
+client = OpenAI(api_key=OPENAI_API_KEY)
 chat_sessions = {}
-
-# System prompt for the company chatbot
-# Link system prompt
-
-# Ensure data directories exist
-os.makedirs('data/conversations', exist_ok=True)
-os.makedirs('data/escalations', exist_ok=True)
-
-
-def save_conversation(conversation_id, messages, escalated=False, title=None):
-    """Save conversation to file"""
-    file_path = f'data/conversations/{conversation_id}.json'
-    
-    # Load existing conversation to preserve created_at and title
-    if os.path.exists(file_path):
-        with open(file_path, 'r') as f:
-            existing_data = json.load(f)
-            created_at = existing_data.get('created_at', datetime.now().isoformat())
-            existing_title = existing_data.get('title', 'New Chat')
-    else:
-        created_at = datetime.now().isoformat()
-        existing_title = 'New Chat'
-    
-    # Generate title from first user message if not provided
-    if title is None:
-        title = existing_title
-        if title == 'New Chat' and len(messages) > 1:
-            for msg in messages:
-                if msg['role'] == 'user':
-                    # Use first 50 chars of first user message as title
-                    title = msg['content'][:50] + ('...' if len(msg['content']) > 50 else '')
-                    break
-    
-    conversation_data = {
-        'id': conversation_id,
-        'created_at': created_at,
-        'updated_at': datetime.now().isoformat(),
-        'title': title,
-        'messages': messages,
-        'escalated': escalated
-    }
-    
-    with open(file_path, 'w') as f:
-        json.dump(conversation_data, f, indent=2)
-    
-    return conversation_data
-
-
-def load_conversation(conversation_id):
-    """Load conversation from file"""
-    file_path = f'data/conversations/{conversation_id}.json'
-    if os.path.exists(file_path):
-        with open(file_path, 'r') as f:
-            data = json.load(f)
-            # Load into memory if not already there
-            if conversation_id not in chat_sessions:
-                chat_sessions[conversation_id] = {
-                    'messages': data['messages'],
-                    'escalated': data.get('escalated', False)
-                }
-            return data
-    return None
-
-
-def list_all_conversations():
-    """List all saved conversations"""
-    conversations = []
-    conv_dir = 'data/conversations'
-    
-    if os.path.exists(conv_dir):
-        for filename in os.listdir(conv_dir):
-            if filename.endswith('.json'):
-                file_path = os.path.join(conv_dir, filename)
-                try:
-                    with open(file_path, 'r') as f:
-                        data = json.load(f)
-                        # Return summary info only
-                        conversations.append({
-                            'id': data['id'],
-                            'title': data.get('title', 'New Chat'),
-                            'created_at': data.get('created_at'),
-                            'updated_at': data.get('updated_at'),
-                            'escalated': data.get('escalated', False),
-                            'message_count': len([m for m in data['messages'] if m['role'] != 'system'])
-                        })
-                except Exception as e:
-                    print(f"Error loading conversation {filename}: {e}")
-    
-    # Sort by updated_at (most recent first)
-    conversations.sort(key=lambda x: x.get('updated_at', ''), reverse=True)
-    return conversations
-
-
-def save_escalation(conversation_id, reason, contact_info):
-    """Save escalation request"""
-    escalation_data = {
-        'conversation_id': conversation_id,
-        'timestamp': datetime.now().isoformat(),
-        'reason': reason,
-        'contact_info': contact_info,
-        'status': 'pending'
-    }
-    
-    escalation_file = f'data/escalations/{conversation_id}_escalation.json'
-    with open(escalation_file, 'w') as f:
-        json.dump(escalation_data, f, indent=2)
-    
-    return escalation_data
 
 
 @app.route('/')
@@ -146,6 +42,12 @@ def start_session():
         conv_data = load_conversation(conversation_id)
         if conv_data:
             session['conversation_id'] = conversation_id
+            # Load into memory cache
+            if conversation_id not in chat_sessions:
+                chat_sessions[conversation_id] = {
+                    'messages': conv_data['messages'],
+                    'escalated': conv_data.get('escalated', False)
+                }
             return jsonify({
                 'success': True,
                 'conversation_id': conversation_id,
@@ -308,7 +210,7 @@ def get_history():
 @app.route('/api/list_conversations', methods=['GET'])
 def list_conversations():
     """List all conversations"""
-    conversations = list_all_conversations()
+    conversations = list_conversations()
     return jsonify({
         'success': True,
         'conversations': conversations
@@ -324,25 +226,19 @@ def delete_conversation():
     if not conversation_id:
         return jsonify({'success': False, 'error': 'No conversation ID provided'}), 400
     
-    file_path = f'data/conversations/{conversation_id}.json'
-    
-    try:
-        if os.path.exists(file_path):
-            os.remove(file_path)
-            # Remove from memory if loaded
-            if conversation_id in chat_sessions:
-                del chat_sessions[conversation_id]
-            
-            # If this was the active conversation, clear session
-            if session.get('conversation_id') == conversation_id:
-                session.pop('conversation_id', None)
-            
-            return jsonify({'success': True, 'message': 'Conversation deleted'})
-        else:
-            return jsonify({'success': False, 'error': 'Conversation not found'}), 404
-    except Exception as e:
-        print(f"Error deleting conversation: {e}")
-        return jsonify({'success': False, 'error': 'Failed to delete conversation'}), 500
+    # Delete from storage
+    if storage_delete_conversation(conversation_id):
+        # Remove from memory if loaded
+        if conversation_id in chat_sessions:
+            del chat_sessions[conversation_id]
+        
+        # If this was the active conversation, clear session
+        if session.get('conversation_id') == conversation_id:
+            session.pop('conversation_id', None)
+        
+        return jsonify({'success': True, 'message': 'Conversation deleted'})
+    else:
+        return jsonify({'success': False, 'error': 'Conversation not found'}), 404
 
 
 @app.route('/health')
@@ -352,6 +248,4 @@ def health():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001)
-
-
+    app.run(debug=FLASK_DEBUG, host=FLASK_HOST, port=FLASK_PORT)
