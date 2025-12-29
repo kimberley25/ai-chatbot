@@ -48,7 +48,8 @@ const DISCOVERY_PATTERNS = [
         label: 'How often would you like check-ins?',
         options: [
             { value: 'Weekly check-ins', text: 'Weekly' },
-            { value: 'Fortnightly check-ins', text: 'Fortnightly' }
+            { value: 'Fortnightly check-ins', text: 'Fortnightly' },
+            { value: 'Not sure / open to recommendations', text: 'Not sure / open to recommendations' }
         ],
         match: (msg) => {
             // Don't match if this is a services listing or general information
@@ -57,6 +58,11 @@ const DISCOVERY_PATTERNS = [
                                      msg.includes('coaching services') && msg.includes('including');
             
             if (isServicesListing) {
+                return false;
+            }
+            
+            // Don't match nutrition support preference questions (handled by nutrition-specific patterns)
+            if (msg.includes('what kind of support would help you most')) {
                 return false;
             }
             
@@ -327,6 +333,170 @@ const DISCOVERY_PATTERNS = [
                     (msg.includes('have') || msg.includes('ever') || msg.includes('you')));
         },
         priority: 90
+    },
+    {
+        id: 'shared-entry-struggles',
+        label: 'What feels hardest right now?',
+        options: [
+            { value: 'Staying consistent or motivated', text: 'Staying consistent or motivated' },
+            { value: 'Not seeing progress', text: 'Not seeing progress' },
+            { value: 'Not sure what to do', text: 'Not sure what to do' },
+            { value: 'Balancing training with work/life', text: 'Balancing training with work/life' },
+            { value: 'Something else', text: 'Something else' }
+        ],
+        match: (msg) => {
+            // Match shared entry point after goal selection
+            return msg.includes('what feels hardest for you right now') ||
+                   (msg.includes('what feels hardest') && (msg.includes('narrow it down') || msg.includes('together'))) ||
+                   (msg.includes('let\'s narrow it down') && msg.includes('what feels hardest'));
+        },
+        priority: 24  // Higher priority for shared entry point
+    },
+    {
+        id: 'nutrition-struggles-direct',
+        label: 'What do you struggle with most when it comes to nutrition?',
+        options: [
+            { value: 'Knowing how much to eat', text: 'Knowing how much to eat' },
+            { value: 'Meal planning & food choices', text: 'Meal planning & food choices' },
+            { value: 'Staying consistent', text: 'Staying consistent' },
+            { value: 'Mostly want structure & check-ins', text: 'Mostly want structure & check-ins' },
+            { value: 'Something else', text: 'Something else' }
+        ],
+        match: (msg) => {
+            // Match when bot asks about nutrition struggles AFTER user selects "Not sure" for check-in frequency
+            // This should only appear after check-in frequency question, not immediately after goal selection
+            return msg.includes('what do you struggle with most when it comes to nutrition') ||
+                   (msg.includes('what do you struggle') && msg.includes('nutrition') && 
+                    !msg.includes('how often')); // Don't match if it's part of check-in frequency question
+        },
+        priority: 25  // High priority - this is the main nutrition struggle question
+    },
+    {
+        id: 'nutrition-structure-checkins',
+        label: 'What level of hands-on support would work best for you?',
+        options: [
+            { value: 'More hands-on support', text: 'More hands-on support' },
+            { value: 'Balanced guidance', text: 'Balanced guidance' },
+            { value: 'Light-touch support', text: 'Light-touch support' }
+        ],
+        match: (msg) => {
+            return (msg.includes('structure and accountability') && msg.includes('what level of hands-on support')) ||
+                   (msg.includes('got it') && msg.includes('structure') && msg.includes('what level')) ||
+                   (msg.includes('mostly want structure') && msg.includes('what level')) ||
+                   (msg.includes('structure and accountability make a big difference') && msg.includes('what level'));
+        },
+        priority: 22
+    },
+    {
+        id: 'nutrition-guidance-preference',
+        label: 'How would you like to get started?',
+        options: [
+            { value: 'Plan my meals', text: 'Plan my meals' },
+            { value: 'Give me a starting guide', text: 'Give me a starting guide' },
+            { value: 'Not sure yet', text: 'Not sure yet' }
+        ],
+        match: (msg) => {
+            return (msg.includes('very common') && msg.includes('especially at the start') && msg.includes('how would you like to get started')) ||
+                   (msg.includes('knowing how much to eat') && msg.includes('how would you like to get started'));
+        },
+        priority: 22
+    },
+    {
+        id: 'nutrition-consistency-checkins',
+        label: 'What level of accountability would help you stay on track?',
+        options: [
+            { value: 'Regular accountability', text: 'Regular accountability' },
+            { value: 'Some guidance', text: 'Some guidance' },
+            { value: 'Not sure yet', text: 'Not sure yet' }
+        ],
+        match: (msg) => {
+            return (msg.includes('consistency usually improves') && msg.includes('what level of accountability')) ||
+                   (msg.includes('regular accountability') && msg.includes('what level')) ||
+                   (msg.includes('staying consistent') && msg.includes('what level of accountability'));
+        },
+        priority: 22
+    },
+    {
+        id: 'nutrition-meal-planning-preference',
+        label: 'What would be most helpful for your meal planning?',
+        options: [
+            { value: 'Help me meal plan', text: 'Help me meal plan' },
+            { value: 'Help me fine-tune choices', text: 'Help me fine-tune choices' },
+            { value: 'I want flexibility', text: 'I want flexibility' }
+        ],
+        match: (msg) => {
+            return (msg.includes('meal planning') && msg.includes('food choices') && msg.includes('what would be most helpful')) ||
+                   (msg.includes('meal planning') && msg.includes('what would be most helpful')) ||
+                   (msg.includes('food choices') && msg.includes('what would be most helpful'));
+        },
+        priority: 22
+    },
+    {
+        id: 'nutrition-results-followup',
+        label: 'What feels stalled?',
+        options: [
+            { value: 'Fat loss', text: 'Fat loss' },
+            { value: 'Body recomposition', text: 'Body recomposition' },
+            { value: 'Energy levels', text: 'Energy levels' },
+            { value: 'Strength / performance', text: 'Strength / performance' },
+            { value: 'Something else', text: 'Something else' }
+        ],
+        match: (msg) => {
+            return msg.includes('what feels stalled') ||
+                   (msg.includes('not seeing results') && msg.includes('what feels')) ||
+                   (msg.includes('stalled') && msg.includes('what feels'));
+        },
+        priority: 23
+    },
+    {
+        id: 'nutrition-balancing-followup',
+        label: 'What makes it challenging?',
+        options: [
+            { value: 'Eating out / social events', text: 'Eating out / social events' },
+            { value: 'Work or shift hours', text: 'Work or shift hours' },
+            { value: 'Family or household meals', text: 'Family or household meals' },
+            { value: 'Stress & fatigue', text: 'Stress & fatigue' },
+            { value: 'Something else', text: 'Something else' }
+        ],
+        match: (msg) => {
+            return (msg.includes('what makes it challenging') && (msg.includes('balancing') || msg.includes('food') || msg.includes('daily life'))) ||
+                   (msg.includes('balancing food with daily life') && msg.includes('what'));
+        },
+        priority: 23
+    },
+    {
+        id: 'struggles',
+        label: 'What do you struggle with?',
+        options: [
+            { value: 'Consistency / staying motivated', text: 'Consistency / staying motivated' },
+            { value: 'Not seeing progress', text: 'Not seeing progress' },
+            { value: 'Accountability', text: 'Accountability' },
+            { value: 'Not sure what to do', text: 'Not sure what to do' },
+            { value: 'Plateau or stuck on lifts', text: 'Plateau or stuck on lifts' },
+            { value: 'Not confident with technique', text: 'Not confident with technique' },
+            { value: 'Balancing training with work/life', text: 'Balancing training with work/life' },
+            { value: 'Recovery or fatigue issues', text: 'Recovery or fatigue issues' },
+            { value: 'Nutrition feels confusing', text: 'Nutrition feels confusing' },
+            { value: 'Mostly want structure and check-ins', text: 'Mostly want structure and check-ins' },
+            { value: 'Something else', text: 'Something else' }
+        ],
+        match: (msg) => {
+            // Don't match if this is a nutrition-specific struggle question
+            const isNutritionStruggle = (msg.includes('nutrition') || msg.includes('food')) &&
+                                      (msg.includes('what feels hardest') || msg.includes('what feels most challenging'));
+            
+            if (isNutritionStruggle) {
+                return false;
+            }
+            
+            return msg.includes('what do you struggle') ||
+                   msg.includes('what are you struggling') ||
+                   msg.includes('what challenges') ||
+                   msg.includes('what\'s challenging') ||
+                   (msg.includes('struggle') && (msg.includes('what') || msg.includes('tell me'))) ||
+                   (msg.includes('challenges') && msg.includes('what'));
+        },
+        priority: 25  // After check-in frequency (20) but before other questions
     },
     {
         id: 'strength-purpose',
@@ -979,6 +1149,43 @@ class ChatApp {
             
             // Add click handler
             chip.addEventListener('click', () => {
+                // Handle "Something else" specially - show input for free text
+                // Works for both general struggles and nutrition-specific struggles
+                if (option.value === 'Something else') {
+                    // Remove selected class from all chips
+                    this.discoveryChips.querySelectorAll('.discovery-chip').forEach(c => {
+                        c.classList.remove('selected');
+                    });
+                    
+                    // Add selected class to clicked chip
+                    chip.classList.add('selected');
+                    
+                    // Show input field and prompt user to type
+                    this.messageInput.style.display = 'block';
+                    this.messageInput.placeholder = 'Tell us what you struggle with...';
+                    this.messageInput.focus();
+                    
+                    // Add a submit handler for the input when Enter is pressed or form submitted
+                    const handleSomethingElseSubmit = (e) => {
+                        if ((e.type === 'keydown' && e.key === 'Enter' && !e.shiftKey) || e.type === 'submit') {
+                            e.preventDefault();
+                            const userInput = this.messageInput.value.trim();
+                            if (userInput) {
+                                // Send the free text as the struggle
+                                this.submitDiscovery(`Something else: ${userInput}`);
+                                this.messageInput.removeEventListener('keydown', handleSomethingElseSubmit);
+                                this.chatForm.removeEventListener('submit', handleSomethingElseSubmit);
+                                this.messageInput.placeholder = 'Type your message here...';
+                            }
+                        }
+                    };
+                    
+                    this.messageInput.addEventListener('keydown', handleSomethingElseSubmit);
+                    this.chatForm.addEventListener('submit', handleSomethingElseSubmit);
+                    return;
+                }
+                
+                // Normal chip selection
                 // Remove selected class from all chips
                 this.discoveryChips.querySelectorAll('.discovery-chip').forEach(c => {
                     c.classList.remove('selected');
