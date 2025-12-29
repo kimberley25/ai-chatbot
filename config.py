@@ -27,9 +27,46 @@ SESSION_COOKIE_SAMESITE = os.getenv('SESSION_COOKIE_SAMESITE', 'Lax')
 SESSION_CLEANUP_INTERVAL_MINUTES = int(os.getenv('SESSION_CLEANUP_INTERVAL_MINUTES', '60'))
 
 SYSTEM_PROMPT_FILE = os.getenv('SYSTEM_PROMPT_FILE', 'system_prompt.txt')
+SYSTEM_PROMPT_DIR = os.getenv('SYSTEM_PROMPT_DIR', 'prompts')
 
-def load_system_prompt(file_path=None):
-    """Load system prompt from file"""
+def load_system_prompt(file_path=None, prompt_dir=None):
+    """
+    Load system prompt from file(s).
+    
+    If prompt_dir is provided and exists, loads all numbered .txt files from that directory
+    in order and combines them. Otherwise, loads from a single file.
+    
+    Args:
+        file_path: Path to single prompt file (for backward compatibility)
+        prompt_dir: Directory containing multiple prompt files
+    
+    Returns:
+        Combined system prompt string
+    """
+    # Try loading from directory first (new method)
+    if prompt_dir is None:
+        prompt_dir = SYSTEM_PROMPT_DIR
+    
+    prompt_dir_path = Path(prompt_dir)
+    if prompt_dir_path.exists() and prompt_dir_path.is_dir():
+        # Load all numbered .txt files and combine them
+        prompt_files = sorted(prompt_dir_path.glob('[0-9]*_*.txt'))
+        
+        if prompt_files:
+            combined_prompt = []
+            for prompt_file in prompt_files:
+                try:
+                    with open(prompt_file, 'r', encoding='utf-8') as f:
+                        content = f.read().strip()
+                        if content:
+                            combined_prompt.append(content)
+                except IOError as e:
+                    print(f"Warning: Could not read {prompt_file}: {e}")
+            
+            if combined_prompt:
+                return '\n\n---\n\n'.join(combined_prompt)
+    
+    # Fallback to single file (backward compatibility)
     if file_path is None:
         file_path = SYSTEM_PROMPT_FILE
     
@@ -38,6 +75,10 @@ def load_system_prompt(file_path=None):
         with open(prompt_path, 'r', encoding='utf-8') as f:
             return f.read().strip()
     else:
-        raise FileNotFoundError(f"System prompt file not found: {file_path}")
+        raise FileNotFoundError(
+            f"System prompt not found. Tried directory '{prompt_dir}' and file '{file_path}'. "
+            f"Please ensure either the prompts directory exists with numbered .txt files, "
+            f"or a single system_prompt.txt file exists."
+        )
 
 SYSTEM_PROMPT = load_system_prompt()
