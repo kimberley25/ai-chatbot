@@ -163,18 +163,19 @@ const DISCOVERY_PATTERNS = [
         options: [
             { value: 'Build muscle', text: 'Build muscle' },
             { value: 'Fat loss / body recomposition', text: 'Fat loss / body recomposition' },
-            { value: 'Maintain weight / healthier habits', text: 'Maintain weight / healthier habits' }
+            { value: 'Maintain weight / healthier lifestyle', text: 'Maintain weight / healthier lifestyle' },
+            { value: 'Competition preparation', text: 'Competition preparation' }
         ],
         match: (msg) => {
             return msg.includes('nutrition goal') ||
                    msg.includes('what is your nutrition goal') ||
                    (msg.includes('nutrition') && (msg.includes('goal') || msg.includes('aiming for'))) ||
-                   (msg.includes('aiming for') && (msg.includes('muscle gain') || msg.includes('fat loss') || msg.includes('maintain'))) ||
-                   ((msg.includes('muscle gain') || msg.includes('fat loss') || msg.includes('maintain')) &&
+                   (msg.includes('aiming for') && (msg.includes('muscle gain') || msg.includes('fat loss') || msg.includes('maintain') || msg.includes('competition'))) ||
+                   ((msg.includes('muscle gain') || msg.includes('fat loss') || msg.includes('maintain') || msg.includes('competition preparation')) &&
                     (msg.includes('what') || msg.includes('which') || msg.includes('tell me') || 
                      msg.includes('are you') || msg.includes('aiming'))) ||
                    (msg.includes('primary goal') && msg.includes('looking for') &&
-                    (msg.includes('fat loss') || msg.includes('muscle gain')));
+                    (msg.includes('fat loss') || msg.includes('muscle gain') || msg.includes('competition')));
         },
         priority: 80
     },
@@ -195,6 +196,22 @@ const DISCOVERY_PATTERNS = [
                     (msg.includes('have') || msg.includes('ever') || msg.includes('you')));
         },
         priority: 90
+    },
+    {
+        id: 'strength-purpose',
+        label: 'Are you getting stronger for general health or to prepare for a competition?',
+        options: [
+            { value: 'General health', text: 'General health' },
+            { value: 'Prepare for a competition', text: 'Prepare for a competition' }
+        ],
+        match: (msg) => {
+            return msg.includes('general health or to prepare for a competition') ||
+                   msg.includes('general health or competition') ||
+                   msg.includes('for general health or to prepare') ||
+                   (msg.includes('general health') && msg.includes('competition')) ||
+                   (msg.includes('getting stronger') && (msg.includes('general health') || msg.includes('competition')));
+        },
+        priority: 85
     }
 ];
 
@@ -544,49 +561,187 @@ class ChatApp {
         this.escalationForm.reset();
     }
     
-    async submitEscalation() {
-        const formData = {
-            name: document.getElementById('escalationName').value,
-            phone: document.getElementById('escalationPhone').value,
-            goal: document.getElementById('escalationGoal').value,
-            preference: document.getElementById('escalationPreference').value,
-            reason: document.getElementById('escalationReason').value || 'Customer requested human assistance'
-        };
+    async extractGoalAndPlan() {
+        // Fetch conversation messages from API for accurate extraction
+        let userMessages = [];
+        let assistantMessages = [];
         
-        if (!formData.name || !formData.phone) {
+        try {
+            const response = await fetch('/api/get_history');
+            const data = await response.json();
+            
+            if (data.success && data.messages) {
+                data.messages.forEach(msg => {
+                    if (msg.role === 'user') {
+                        userMessages.push(msg.content);
+                    } else if (msg.role === 'assistant') {
+                        assistantMessages.push(msg.content);
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching conversation history:', error);
+            // Fallback to DOM extraction
+            const messages = Array.from(this.messages.querySelectorAll('.message'));
+            messages.forEach(msg => {
+                const isUser = msg.classList.contains('user-message');
+                const content = msg.querySelector('.message-text')?.textContent || '';
+                if (isUser) {
+                    userMessages.push(content);
+                } else {
+                    assistantMessages.push(content);
+                }
+            });
+        }
+        
+        // Extract goal and experience level from user messages
+        let goal = 'General Inquiry';
+        let experienceLevel = '';
+        const userText = userMessages.join(' ').toLowerCase();
+        const fullUserText = userMessages.join(' ').toLowerCase();
+        
+        // Extract experience level
+        if (fullUserText.includes('beginner')) {
+            experienceLevel = 'beginner';
+        } else if (fullUserText.includes('intermediate')) {
+            experienceLevel = 'intermediate';
+        } else if (fullUserText.includes('advanced') || fullUserText.includes('competitive')) {
+            experienceLevel = 'advanced';
+        }
+        
+        // Extract goal
+        if (userText.includes('compete') || userText.includes('competition')) {
+            goal = 'Competition prep';
+        } else if (userText.includes('stronger') || userText.includes('strength') || userText.includes('powerlifting')) {
+            goal = 'Build strength';
+        } else if (userText.includes('nutrition') || userText.includes('fat loss') || userText.includes('muscle gain')) {
+            goal = 'Nutrition Coaching';
+        }
+        
+        // Append experience level to goal if available
+        if (goal !== 'General Inquiry' && experienceLevel) {
+            goal = `${goal} (${experienceLevel})`;
+        }
+        
+        // Extract plan from user selections
+        let packageType = '';
+        let coachingPreference = '';
+        let checkInFrequency = '';
+        
+        const fullText = userMessages.join(' ').toLowerCase();
+        
+        // Check for package type (exact matches first)
+        if (fullText.includes('training only') && !fullText.includes('full athlete')) {
+            packageType = 'Training only';
+        } else if (fullText.includes('full athlete package') || fullText.includes('full athlete')) {
+            packageType = 'Full Athlete Package';
+        }
+        
+        // Check for coaching preference
+        if (fullText.includes('online coaching') || (fullText.includes('online') && fullText.includes('coaching'))) {
+            coachingPreference = 'Online coaching';
+        } else if (fullText.includes('in-person coaching') || (fullText.includes('in-person') && fullText.includes('coaching'))) {
+            coachingPreference = 'In-person coaching';
+        } else if (fullText.includes('club coaching')) {
+            coachingPreference = 'Club coaching';
+        }
+        
+        // Check for check-in frequency
+        if (fullText.includes('weekly check-in') || fullText.includes('weekly check-ins') || 
+            (fullText.includes('weekly') && fullText.includes('check'))) {
+            checkInFrequency = 'weekly check-ins';
+        } else if (fullText.includes('fortnightly check-in') || fullText.includes('fortnightly check-ins') ||
+                   (fullText.includes('fortnightly') && fullText.includes('check'))) {
+            checkInFrequency = 'fortnightly check-ins';
+        }
+        
+        // Build plan string in format: "Package Type (coaching preference, check-in frequency)"
+        let plan = 'Not specified';
+        
+        if (packageType) {
+            const details = [];
+            if (coachingPreference) details.push(coachingPreference);
+            if (checkInFrequency) details.push(checkInFrequency);
+            
+            if (details.length > 0) {
+                plan = `${packageType} (${details.join(', ')})`;
+            } else {
+                plan = packageType;
+            }
+        } else if (coachingPreference) {
+            // If no package type but we have coaching preference
+            const details = [];
+            if (checkInFrequency) details.push(checkInFrequency);
+            if (details.length > 0) {
+                plan = `${coachingPreference} (${details.join(', ')})`;
+            } else {
+                plan = coachingPreference;
+            }
+        } else {
+            // If no plan parts found, try to extract from assistant messages
+            const assistantText = assistantMessages.join(' ').toLowerCase();
+            if (assistantText.includes('online coaching')) {
+                plan = 'Online coaching';
+            } else if (assistantText.includes('club coaching')) {
+                plan = 'Club coaching';
+            } else if (assistantText.includes('nutrition coaching')) {
+                plan = 'Nutrition coaching';
+            }
+        }
+        
+        return { goal, plan };
+    }
+    
+    displayHandoverSummary(name, mobile, goal, plan) {
+        const summary = `Name: ${name}\nMobile: ${mobile}\nGoal: ${goal}\nPlan: ${plan}`;
+        this.addMessage('assistant', summary);
+    }
+    
+    async submitEscalation() {
+        const name = document.getElementById('escalationName').value.trim();
+        const mobile = document.getElementById('escalationPhone').value.trim();
+        
+        if (!name || !mobile) {
             alert('Please fill in all required fields.');
             return;
         }
         
-        try {
-            // Ensure conversation is saved before escalating
-            // The backend will save the conversation when escalation is submitted
-            const response = await fetch('/api/escalate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contact_info: {
-                        name: formData.name,
-                        phone: formData.phone,
-                        goal: formData.goal,
-                        preference: formData.preference
-                    },
-                    reason: formData.reason
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                this.closeEscalationModal();
-                this.addMessage('assistant', data.message || 'Your conversation has been escalated to our support team. A representative will contact you within 24 hours.');
-            } else {
-                alert('Failed to submit escalation. Please try again.');
+        // Extract goal and plan from conversation
+        const { goal, plan } = await this.extractGoalAndPlan();
+        
+        // Close modal first
+        this.closeEscalationModal();
+        
+        // Display handover summary BEFORE submitting
+        this.displayHandoverSummary(name, mobile, goal, plan);
+        
+        // Wait a moment for the message to display, then submit escalation
+        setTimeout(async () => {
+            try {
+                // Submit escalation to backend
+                const response = await fetch('/api/escalate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contact_info: {
+                            name: name,
+                            phone: mobile,
+                            goal: goal,
+                            plan: plan
+                        },
+                        reason: 'Customer requested human assistance'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    console.error('Failed to submit escalation:', data.error);
+                }
+            } catch (error) {
+                console.error('Error submitting escalation:', error);
             }
-        } catch (error) {
-            console.error('Error submitting escalation:', error);
-            alert('Failed to submit escalation. Please try again.');
-        }
+        }, 500);
     }
     
     async checkSessionStatus() {
