@@ -28,9 +28,10 @@ const DISCOVERY_PATTERNS = [
         ],
         match: (msg) => {
             // Don't match on goal classification questions
+            // But allow "nutrition support" when it's describing a package (e.g., "includes nutrition support")
             const isGoalQuestion = msg.includes('getting stronger') || 
                                   msg.includes('preparing for a competition') ||
-                                  msg.includes('nutrition support') ||
+                                  (msg.includes('nutrition support') && !msg.includes('includes nutrition support') && !msg.includes('full athlete package')) ||
                                   (msg.includes('mainly looking for') && (msg.includes('stronger') || msg.includes('competition') || msg.includes('nutrition')));
             
             if (isGoalQuestion) {
@@ -61,8 +62,10 @@ const DISCOVERY_PATTERNS = [
                 return false;
             }
             
-            // Don't match nutrition support preference questions (handled by nutrition-specific patterns)
-            if (msg.includes('what kind of support would help you most')) {
+            // Don't match support preference questions (handled by specific patterns)
+            if (msg.includes('what kind of support would help you most') ||
+                msg.includes('what kind of support would help you stay on track') ||
+                (msg.includes('what kind of support') && msg.includes('help you'))) {
                 return false;
             }
             
@@ -128,44 +131,6 @@ const DISCOVERY_PATTERNS = [
                    msg.includes('advanced or competitive');
         },
         priority: 30
-    },
-    {
-        id: 'primary-goal',
-        label: 'What is your primary goal?',
-        options: [
-            { value: 'Nutrition Coaching (fat loss/muscle gain)', text: 'Nutrition Coaching (fat loss/muscle gain)' },
-            { value: 'Strength / powerlifting performance', text: 'Strength / powerlifting performance' },
-            { value: 'Competition preparation', text: 'Competition preparation' }
-        ],
-        match: (msg) => {
-            return msg.includes('primary goal') ||
-                   msg.includes('what is your goal') ||
-                   msg.includes('what\'s your goal') ||
-                   (msg.includes('what') && msg.includes('goal') &&
-                    (msg.includes('nutrition coaching') || msg.includes('strength') ||
-                     msg.includes('powerlifting performance') || msg.includes('competition preparation')) &&
-                    !msg.includes('training experience') && !msg.includes('experience level'));
-        },
-        priority: 40
-    },
-    {
-        id: 'age-range',
-        label: 'What is your age range?',
-        options: [
-            { value: 'Under 18', text: 'Under 18' },
-            { value: '18-29', text: '18-29' },
-            { value: '30-39', text: '30-39' },
-            { value: '40+', text: '40+' }
-        ],
-        match: (msg) => {
-            return msg.includes('age range') ||
-                   msg.includes('how old are you') ||
-                   msg.includes('how old') ||
-                   msg.includes('can i ask how old') ||
-                   (msg.includes('age') && (msg.includes('what') || msg.includes('tell me') || 
-                    msg.includes('let me know') || msg.includes('can i ask')));
-        },
-        priority: 50
     },
     {
         id: 'coaching-preference',
@@ -287,6 +252,35 @@ const DISCOVERY_PATTERNS = [
         priority: 5  // Higher priority than package-type (10) and check-in-frequency (20)
     },
     {
+        id: 'one-to-one-addon',
+        label: 'Would you like to add 1-to-1 coaching?',
+        options: [
+            { value: 'Yes, add 1-to-1 coaching', text: 'Yes, add 1-to-1 coaching' },
+            { value: 'No, just Club Coaching', text: 'No, just Club Coaching' }
+        ],
+        match: (msg) => {
+            return (msg.includes('1-to-1') || msg.includes('one-to-one')) &&
+                   (msg.includes('add-on') || msg.includes('adding') || msg.includes('interested in adding')) &&
+                   (msg.includes('?') || msg.includes('would you'));
+        },
+        priority: 95
+    },
+    {
+        id: 'one-to-one-addon-online',
+        label: 'Would you like to add 1-to-1 coaching?',
+        options: [
+            { value: 'Yes, add 1-to-1 coaching', text: 'Yes, add 1-to-1 coaching' },
+            { value: 'No, just Weekly Online Coaching', text: 'No, just Weekly Online Coaching' }
+        ],
+        match: (msg) => {
+            return (msg.includes('1-to-1') || msg.includes('one-to-one')) &&
+                   (msg.includes('add-on') || msg.includes('adding') || msg.includes('interested in adding')) &&
+                   (msg.includes('online coaching') || msg.includes('Online Coaching')) &&
+                   (msg.includes('?') || msg.includes('would you'));
+        },
+        priority: 96
+    },
+    {
         id: 'nutrition-goal',
         label: 'What is your nutrition goal?',
         options: [
@@ -300,19 +294,20 @@ const DISCOVERY_PATTERNS = [
                                         (msg.includes('mainly looking for') && msg.includes('right now')) ||
                                         msg.includes('five coaching options');
             
-            if (isGoalClassification) { 
+            // Don't match on recommendation messages
+            const isRecommendation = msg.includes('would suit you best') ||
+                                    msg.includes('Based on what you\'ve shared') ||
+                                    msg.includes('I recommend') ||
+                                    msg.includes('I\'d recommend');
+            
+            if (isGoalClassification || isRecommendation) { 
                 return false;
             }
             
             // Match various forms of nutrition goal questions
             return msg.includes('nutrition goal') ||
                    msg.includes('what is your nutrition goal') ||
-                   (msg.includes('nutrition') && msg.includes('goal') && !msg.includes('coaching options')) ||
-                   (msg.includes('aiming for') && (msg.includes('muscle gain') || msg.includes('fat loss') || msg.includes('maintain') || msg.includes('competition'))) ||
-                   ((msg.includes('muscle gain') || msg.includes('fat loss') || msg.includes('maintain') || msg.includes('competition preparation')) &&
-                    (msg.includes('what') || msg.includes('which') || msg.includes('tell me') || 
-                     msg.includes('are you') || msg.includes('aiming')) &&
-                    !msg.includes('coaching options'));
+                   (msg.includes('nutrition') && msg.includes('goal') && !msg.includes('coaching options'));
         },
         priority: 80
     },
@@ -333,24 +328,6 @@ const DISCOVERY_PATTERNS = [
                     (msg.includes('have') || msg.includes('ever') || msg.includes('you')));
         },
         priority: 90
-    },
-    {
-        id: 'shared-entry-struggles',
-        label: 'What feels hardest right now?',
-        options: [
-            { value: 'Staying consistent or motivated', text: 'Staying consistent or motivated' },
-            { value: 'Not seeing progress', text: 'Not seeing progress' },
-            { value: 'Not sure what to do', text: 'Not sure what to do' },
-            { value: 'Balancing training with work/life', text: 'Balancing training with work/life' },
-            { value: 'Something else', text: 'Something else' }
-        ],
-        match: (msg) => {
-            // Match shared entry point after goal selection
-            return msg.includes('what feels hardest for you right now') ||
-                   (msg.includes('what feels hardest') && (msg.includes('narrow it down') || msg.includes('together'))) ||
-                   (msg.includes('let\'s narrow it down') && msg.includes('what feels hardest'));
-        },
-        priority: 24  // Higher priority for shared entry point
     },
     {
         id: 'nutrition-struggles-direct',
@@ -555,7 +532,9 @@ const DISCOVERY_PATTERNS = [
             const isNutritionContext = msg.includes('nutrition') && 
                                       (msg.includes('struggle') || msg.includes('accountability'));
             
-            return msg.includes('what kind of support would help you most right now') &&
+            return (msg.includes('what kind of support would help you most right now') ||
+                   msg.includes('what kind of support would help you stay on track') ||
+                   (msg.includes('what kind of support') && msg.includes('help you'))) &&
                    !isNutritionContext;
         },
         priority: 22
@@ -575,6 +554,54 @@ const DISCOVERY_PATTERNS = [
                    (msg.includes('getting stronger') && (msg.includes('general health') || msg.includes('competition')));
         },
         priority: 85
+    },
+    {
+        id: 'does-this-suit-you',
+        label: 'Does this suit you?',
+        options: [
+            { value: 'Yes, this suits me', text: 'Yes, this suits me' },
+            { value: 'No, I\'d prefer something else', text: 'No, I\'d prefer something else' }
+        ],
+        match: (msg) => {
+            return msg.includes('does this suit you') ||
+                   (msg.includes('suit you') && msg.includes('?'));
+        },
+        priority: 92
+    },
+    {
+        id: 'beginner-coaching-choice',
+        label: 'Would you prefer in-person or online?',
+        options: [
+            { value: 'In-person club coaching', text: 'In-person club coaching' },
+            { value: 'Online coaching', text: 'Online coaching' }
+        ],
+        match: (msg) => {
+            // Match when asking beginners to choose between in-person and online
+            // after explaining both options
+            return (msg.includes('would you prefer in-person or online') ||
+                   (msg.includes('in-person') && msg.includes('online') && 
+                    msg.includes('prefer') && msg.includes('?'))) &&
+                   (msg.includes('beginner') || msg.includes('club coaching') || 
+                    msg.includes('technique') || msg.includes('confidence'));
+        },
+        priority: 88
+    },
+    {
+        id: 'one-to-one-addon-simple',
+        label: 'Would you like to add 1-to-1 coaching?',
+        options: [
+            { value: 'Yes, I\'d like to add on', text: 'Yes, I\'d like to add on' },
+            { value: 'No', text: 'No' }
+        ],
+        match: (msg) => {
+            // Match simpler 1-to-1 add-on questions (without mentioning specific coaching type)
+            return (msg.includes('add 1-to-1') || msg.includes('add on') || msg.includes('add-on')) &&
+                   (msg.includes('would you like') || msg.includes('interested')) &&
+                   msg.includes('?') &&
+                   !msg.includes('club coaching would suit') &&
+                   !msg.includes('online coaching would suit');
+        },
+        priority: 93
     }
 ];
 
