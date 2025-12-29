@@ -293,7 +293,6 @@ const DISCOVERY_PATTERNS = [
             { value: 'Build muscle', text: 'Build muscle' },
             { value: 'Fat loss / body recomposition', text: 'Fat loss / body recomposition' },
             { value: 'Maintain weight / healthier lifestyle', text: 'Maintain weight / healthier lifestyle' },
-            { value: 'Competition preparation', text: 'Competition preparation' }
         ],
         match: (msg) => {
             // Don't match on goal classification or services explanation
@@ -301,10 +300,11 @@ const DISCOVERY_PATTERNS = [
                                         (msg.includes('mainly looking for') && msg.includes('right now')) ||
                                         msg.includes('five coaching options');
             
-            if (isGoalClassification) {
+            if (isGoalClassification) { 
                 return false;
             }
             
+            // Match various forms of nutrition goal questions
             return msg.includes('nutrition goal') ||
                    msg.includes('what is your nutrition goal') ||
                    (msg.includes('nutrition') && msg.includes('goal') && !msg.includes('coaching options')) ||
@@ -365,9 +365,14 @@ const DISCOVERY_PATTERNS = [
         match: (msg) => {
             // Match when bot asks about nutrition struggles AFTER user selects "Not sure" for check-in frequency
             // This should only appear after check-in frequency question, not immediately after goal selection
+            // Don't match if it's part of check-in frequency question
+            if (msg.includes('how often')) {
+                return false;
+            }
+            
             return msg.includes('what do you struggle with most when it comes to nutrition') ||
-                   (msg.includes('what do you struggle') && msg.includes('nutrition') && 
-                    !msg.includes('how often')); // Don't match if it's part of check-in frequency question
+                   (msg.includes('what do you struggle with most') && msg.includes('nutrition')) ||
+                   (msg.includes('what do you struggle') && msg.includes('nutrition'));
         },
         priority: 25  // High priority - this is the main nutrition struggle question
     },
@@ -392,7 +397,7 @@ const DISCOVERY_PATTERNS = [
         label: 'How would you like to get started?',
         options: [
             { value: 'Plan my meals', text: 'Plan my meals' },
-            { value: 'Give me a starting guide', text: 'Give me a starting guide' },
+            { value: 'Give me some direction', text: 'Give me some direction' },
             { value: 'Not sure yet', text: 'Not sure yet' }
         ],
         match: (msg) => {
@@ -410,7 +415,9 @@ const DISCOVERY_PATTERNS = [
             { value: 'Not sure yet', text: 'Not sure yet' }
         ],
         match: (msg) => {
-            return (msg.includes('consistency usually improves') && msg.includes('what level of accountability')) ||
+            return msg.includes('what level of accountability would help you stay on track') ||
+                   msg.includes('what level of accountability') ||
+                   (msg.includes('consistency usually improves') && msg.includes('what level of accountability')) ||
                    (msg.includes('regular accountability') && msg.includes('what level')) ||
                    (msg.includes('staying consistent') && msg.includes('what level of accountability'));
         },
@@ -493,9 +500,8 @@ const DISCOVERY_PATTERNS = [
         id: 'program-structure-followup',
         label: 'What feels unclear about your program right now?',
         options: [
-            { value: 'I don\'t know what exercises to do', text: 'I don\'t know what exercises to do' },
             { value: 'I\'m not sure how to progress', text: 'I\'m not sure how to progress' },
-            { value: 'I want a clear plan to follow', text: 'I want a clear plan to follow' },
+            { value: 'I need a structured program', text: 'I need a structured program' },
             { value: 'Not sure yet', text: 'Not sure yet' }
         ],
         match: (msg) => {
@@ -508,8 +514,7 @@ const DISCOVERY_PATTERNS = [
         id: 'slow-progress-followup',
         label: 'What do you feel is holding your progress back most?',
         options: [
-            { value: 'Strength isn\'t increasing', text: 'Strength isn\'t increasing' },
-            { value: 'Stuck or plateau', text: 'Stuck or plateau' },
+            { value: 'Strength isn\'t increasing / stuck', text: 'Strength isn\'t increasing / stuck' },
             { value: 'I\'m inconsistent', text: 'I\'m inconsistent' },
             { value: 'Not sure yet', text: 'Not sure yet' }
         ],
