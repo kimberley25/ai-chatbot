@@ -320,8 +320,8 @@ const DISCOVERY_PATTERNS = [
         id: 'competed-before',
         label: 'Have you competed before?',
         options: [
-            { value: 'Yes', text: 'Yes' },
-            { value: 'No', text: 'No' }
+            { value: 'Yes, I\'ve competed before', text: 'Yes, I\'ve competed before' },
+            { value: 'No, I\'m a first time competitor', text: 'No, I\'m a first time competitor' }
         ],
         match: (msg) => {
             return msg.includes('competed before') ||
@@ -468,16 +468,10 @@ const DISCOVERY_PATTERNS = [
         id: 'struggles',
         label: 'What do you struggle with?',
         options: [
-            { value: 'Consistency / staying motivated', text: 'Consistency / staying motivated' },
-            { value: 'Not seeing progress', text: 'Not seeing progress' },
-            { value: 'Accountability', text: 'Accountability' },
-            { value: 'Not sure what to do', text: 'Not sure what to do' },
-            { value: 'Plateau or stuck on lifts', text: 'Plateau or stuck on lifts' },
-            { value: 'Not confident with technique', text: 'Not confident with technique' },
-            { value: 'Balancing training with work/life', text: 'Balancing training with work/life' },
-            { value: 'Recovery or fatigue issues', text: 'Recovery or fatigue issues' },
-            { value: 'Nutrition feels confusing', text: 'Nutrition feels confusing' },
-            { value: 'Mostly want structure and check-ins', text: 'Mostly want structure and check-ins' },
+            { value: 'Program structure', text: 'Program structure' },
+            { value: 'Slow progress', text: 'Slow progress' },
+            { value: 'Technique & form', text: 'Technique & form' },
+            { value: 'Staying consistent', text: 'Staying consistent' },
             { value: 'Something else', text: 'Something else' }
         ],
         match: (msg) => {
@@ -489,14 +483,77 @@ const DISCOVERY_PATTERNS = [
                 return false;
             }
             
-            return msg.includes('what do you struggle') ||
-                   msg.includes('what are you struggling') ||
-                   msg.includes('what challenges') ||
-                   msg.includes('what\'s challenging') ||
-                   (msg.includes('struggle') && (msg.includes('what') || msg.includes('tell me'))) ||
-                   (msg.includes('challenges') && msg.includes('what'));
+            // Match the new strength flow struggle question
+            return msg.includes('what do you struggle with most') ||
+                   (msg.includes('what do you struggle') && !msg.includes('nutrition'));
         },
         priority: 25  // After check-in frequency (20) but before other questions
+    },
+    {
+        id: 'program-structure-followup',
+        label: 'What feels unclear about your program right now?',
+        options: [
+            { value: 'I don\'t know what exercises to do', text: 'I don\'t know what exercises to do' },
+            { value: 'I\'m not sure how to progress', text: 'I\'m not sure how to progress' },
+            { value: 'I want a clear plan to follow', text: 'I want a clear plan to follow' },
+            { value: 'Not sure yet', text: 'Not sure yet' }
+        ],
+        match: (msg) => {
+            return msg.includes('what feels unclear about your program') ||
+                   (msg.includes('unclear') && msg.includes('program') && msg.includes('right now'));
+        },
+        priority: 22
+    },
+    {
+        id: 'slow-progress-followup',
+        label: 'What do you feel is holding your progress back most?',
+        options: [
+            { value: 'Strength isn\'t increasing', text: 'Strength isn\'t increasing' },
+            { value: 'Stuck or plateau', text: 'Stuck or plateau' },
+            { value: 'I\'m inconsistent', text: 'I\'m inconsistent' },
+            { value: 'Not sure yet', text: 'Not sure yet' }
+        ],
+        match: (msg) => {
+            return msg.includes('what do you feel is holding your progress back') ||
+                   (msg.includes('holding') && msg.includes('progress back') && msg.includes('most'));
+        },
+        priority: 22
+    },
+    {
+        id: 'technique-form-followup',
+        label: 'What would you like help with most?',
+        options: [
+            { value: 'Not confident with my form', text: 'Not confident with my form' },
+            { value: 'Feedback on lifts', text: 'Feedback on lifts' },
+            { value: 'Not sure yet', text: 'Not sure yet' }
+        ],
+        match: (msg) => {
+            // Match when asking about help with technique/form
+            // Check for the question AND context indicating technique/form
+            return msg.includes('what would you like help with most') &&
+                   (msg.includes('technique') || msg.includes('form') || 
+                    msg.includes('lift') || msg.includes('feedback'));
+        },
+        priority: 22
+    },
+    {
+        id: 'staying-consistent-followup-strength',
+        label: 'What kind of support would help you most right now?',
+        options: [
+            { value: 'Regular accountability', text: 'Regular accountability' },
+            { value: 'Some guidance', text: 'Some guidance' },
+            { value: 'Not sure yet', text: 'Not sure yet' }
+        ],
+        match: (msg) => {
+            // Match when asking about support for staying consistent
+            // Exclude nutrition context (nutrition has its own accountability question)
+            const isNutritionContext = msg.includes('nutrition') && 
+                                      (msg.includes('struggle') || msg.includes('accountability'));
+            
+            return msg.includes('what kind of support would help you most right now') &&
+                   !isNutritionContext;
+        },
+        priority: 22
     },
     {
         id: 'strength-purpose',
