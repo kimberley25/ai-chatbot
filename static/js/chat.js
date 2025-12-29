@@ -27,6 +27,16 @@ const DISCOVERY_PATTERNS = [
             { value: 'Full Athlete Package (training + nutrition)', text: 'Full Athlete Package (training + nutrition)' }
         ],
         match: (msg) => {
+            // Don't match on goal classification questions
+            const isGoalQuestion = msg.includes('getting stronger') || 
+                                  msg.includes('preparing for a competition') ||
+                                  msg.includes('nutrition support') ||
+                                  (msg.includes('mainly looking for') && (msg.includes('stronger') || msg.includes('competition') || msg.includes('nutrition')));
+            
+            if (isGoalQuestion) {
+                return false;
+            }
+            
             return (msg.includes('training only') || msg.includes('training-only') || msg.includes('full athlete package')) &&
                    (msg.includes('would you') || msg.includes('prefer') || msg.includes('choose') || 
                     msg.includes('interested in') || msg.includes('which'));
@@ -41,14 +51,54 @@ const DISCOVERY_PATTERNS = [
             { value: 'Fortnightly check-ins', text: 'Fortnightly' }
         ],
         match: (msg) => {
-            return msg.includes('weekly or fortnightly') ||
-                   msg.includes('fortnightly or weekly') ||
-                   msg.includes('prefer weekly or fortnightly') ||
-                   (msg.includes('weekly') && msg.includes('fortnightly') && 
-                    (msg.includes('prefer') || msg.includes('would you') || msg.includes('how often'))) ||
-                   (msg.includes('how often') && (msg.includes('weekly') || msg.includes('fortnightly'))) ||
-                   ((msg.includes('check') && (msg.includes('in') || msg.includes('-in'))) && 
-                    (msg.includes('weekly') || msg.includes('fortnightly') || msg.includes('frequency')));
+            // Don't match if this is a services listing or general information
+            const isServicesListing = msg.includes('we offer') || 
+                                     msg.includes('services') && (msg.includes('include') || msg.includes('variety')) ||
+                                     msg.includes('coaching services') && msg.includes('including');
+            
+            if (isServicesListing) {
+                return false;
+            }
+            
+            // Match if asking about check-in frequency
+            // Check for "check" and "in" together (handles "check in", "check-in", "checkin")
+            const hasCheckIn = (msg.includes('check') && msg.includes('in')) ||
+                              msg.includes('check-in') || 
+                              msg.includes('checkin');
+            
+            // Check for frequency-related keywords (must be a question)
+            const hasFrequency = msg.includes('how often') || 
+                                msg.includes('frequency');
+            
+            // Match if explicitly mentioning weekly/fortnightly options in a question
+            const hasOptions = msg.includes('weekly or fortnightly') ||
+                              msg.includes('fortnightly or weekly') ||
+                              msg.includes('prefer weekly or fortnightly');
+            
+            // Primary match: "how often" + "check in" (most common pattern - must be a question)
+            if (hasFrequency && hasCheckIn) {
+                return true;
+            }
+            
+            // Secondary match: "how often" in coaching/nutrition context (must be a question)
+            // This catches questions like "How often would you like to check in?"
+            if (hasFrequency && (hasCheckIn || msg.includes('coaching') || msg.includes('nutrition'))) {
+                // Make sure it's actually asking a question, not just listing
+                const isQuestion = msg.includes('?') || 
+                                  msg.includes('would you') || 
+                                  msg.includes('do you') ||
+                                  msg.includes('prefer');
+                if (isQuestion) {
+                    return true;
+                }
+            }
+            
+            // Match explicit options (must be a question)
+            if (hasOptions) {
+                return true;
+            }
+            
+            return false;
         },
         priority: 20
     },
@@ -150,12 +200,85 @@ const DISCOVERY_PATTERNS = [
             { value: 'I need help with nutrition', text: 'Nutrition Coaching' }
         ],
         match: (msg) => {
-            return (msg.includes('services') || msg.includes('offer') || msg.includes('coaching options')) &&
-                   (msg.includes('online coaching') || msg.includes('club coaching') ||
-                    msg.includes('nutrition coaching') || msg.includes('1-to-1') ||
-                    msg.includes('full athlete'));
+            // Don't match on welcome messages
+            const isWelcomeMessage = msg.includes('welcome') && 
+                                     (msg.includes('what can i help') || msg.includes('questions about'));
+            
+            if (isWelcomeMessage) {
+                return false;
+            }
+            
+            // Match goal classification question - highest priority
+            const isGoalClassification = (msg.includes('getting stronger') || 
+                                         msg.includes('preparing for a competition') ||
+                                         msg.includes('nutrition support') ||
+                                         msg.includes('point you in the right direction')) &&
+                                        (msg.includes('mainly looking for') || 
+                                         msg.includes('what are you') ||
+                                         msg.includes('right now'));
+            
+            if (isGoalClassification) {
+                return true;
+            }
+            
+            // Match the new shorter services explanation format
+            // Matches: "We offer five coaching options..." + "To point you in the right direction..."
+            const isShortServicesExplanation = (msg.includes('five coaching options') ||
+                                                msg.includes('coaching options, covering') ||
+                                                (msg.includes('online') && msg.includes('in-person') && msg.includes('club training'))) &&
+                                               msg.includes('point you in the right direction') &&
+                                               (msg.includes('mainly looking for') ||
+                                                msg.includes('what are you') ||
+                                                msg.includes('right now'));
+            
+            if (isShortServicesExplanation) {
+                return true;
+            }
+            
+            // Also match if message contains "five coaching options" and asks what user is looking for
+            // This catches variations of the services explanation
+            const hasFiveOptions = msg.includes('five coaching options') || 
+                                  (msg.includes('coaching options') && msg.includes('covering'));
+            const isAskingWhatLookingFor = msg.includes('mainly looking for') ||
+                                          (msg.includes('what are you') && msg.includes('looking'));
+            
+            if (hasFiveOptions && isAskingWhatLookingFor) {
+                return true;
+            }
+            
+            // Match when bot has EXPLAINED services (listed multiple services)
+            // Must have mentioned services/offer AND listed at least 2-3 specific services
+            const hasServicesContext = (msg.includes('services') || msg.includes('offer') || msg.includes('coaching options') || msg.includes('variety')) &&
+                                      (msg.includes('online coaching') || msg.includes('club coaching') ||
+                                       msg.includes('nutrition coaching') || msg.includes('1-to-1') ||
+                                       msg.includes('full athlete') || msg.includes('athlete package'));
+            
+            // Must have listed multiple services (not just mentioned one)
+            const hasMultipleServices = (msg.includes('online coaching') && msg.includes('club coaching')) ||
+                                       (msg.includes('online coaching') && msg.includes('nutrition')) ||
+                                       (msg.includes('online coaching') && msg.includes('athlete')) ||
+                                       (msg.includes('club coaching') && msg.includes('nutrition')) ||
+                                       (msg.includes('variety') && (msg.includes('coaching') || msg.includes('services')));
+            
+            // Match when explicitly asking "What are you interested in?" AFTER explaining services
+            const isAskingInterest = (msg.includes('what are you interested') ||
+                                     msg.includes('what would you like') ||
+                                     msg.includes('what can i help') ||
+                                     msg.includes('specific goal') ||
+                                     msg.includes('interested in any specific')) &&
+                                    hasServicesContext;
+            
+            // Match when bot finishes explaining services and asks what user is interested in
+            const isInvitingChoice = ((msg.includes('if you have a specific goal') ||
+                                     msg.includes('if you\'re interested') ||
+                                     msg.includes('feel free to ask') ||
+                                     msg.includes('let me know') ||
+                                     msg.includes('what are you')) &&
+                                    hasMultipleServices);
+            
+            return (hasServicesContext && hasMultipleServices) || isAskingInterest || isInvitingChoice;
         },
-        priority: 70
+        priority: 5  // Higher priority than package-type (10) and check-in-frequency (20)
     },
     {
         id: 'nutrition-goal',
@@ -167,15 +290,23 @@ const DISCOVERY_PATTERNS = [
             { value: 'Competition preparation', text: 'Competition preparation' }
         ],
         match: (msg) => {
+            // Don't match on goal classification or services explanation
+            const isGoalClassification = msg.includes('point you in the right direction') ||
+                                        (msg.includes('mainly looking for') && msg.includes('right now')) ||
+                                        msg.includes('five coaching options');
+            
+            if (isGoalClassification) {
+                return false;
+            }
+            
             return msg.includes('nutrition goal') ||
                    msg.includes('what is your nutrition goal') ||
-                   (msg.includes('nutrition') && (msg.includes('goal') || msg.includes('aiming for'))) ||
+                   (msg.includes('nutrition') && msg.includes('goal') && !msg.includes('coaching options')) ||
                    (msg.includes('aiming for') && (msg.includes('muscle gain') || msg.includes('fat loss') || msg.includes('maintain') || msg.includes('competition'))) ||
                    ((msg.includes('muscle gain') || msg.includes('fat loss') || msg.includes('maintain') || msg.includes('competition preparation')) &&
                     (msg.includes('what') || msg.includes('which') || msg.includes('tell me') || 
-                     msg.includes('are you') || msg.includes('aiming'))) ||
-                   (msg.includes('primary goal') && msg.includes('looking for') &&
-                    (msg.includes('fat loss') || msg.includes('muscle gain') || msg.includes('competition')));
+                     msg.includes('are you') || msg.includes('aiming')) &&
+                    !msg.includes('coaching options'));
         },
         priority: 80
     },
@@ -694,7 +825,13 @@ class ChatApp {
     
     displayHandoverSummary(name, mobile, goal, plan) {
         const summary = `Name: ${name}\nMobile: ${mobile}\nGoal: ${goal}\nPlan: ${plan}`;
+        // Hide chips before displaying handover summary
+        this.hideDiscoveryChips();
         this.addMessage('assistant', summary);
+        // Ensure chips stay hidden after adding the message
+        setTimeout(() => {
+            this.hideDiscoveryChips();
+        }, 50);
     }
     
     async submitEscalation() {
@@ -787,6 +924,16 @@ class ChatApp {
     checkForDiscoveryQuestion(botMessage) {
         const message = botMessage.toLowerCase();
         
+        // Check if this is a handover summary - hide chips
+        // Handover summaries have format: Name: ... Mobile: ... Goal: ... Plan: ...
+        const isHandoverSummary = (message.includes('name:') && message.includes('mobile:') && 
+                                   message.includes('goal:') && message.includes('plan:'));
+        
+        if (isHandoverSummary) {
+            this.hideDiscoveryChips();
+            return;
+        }
+        
         // Check if bot is making a recommendation - hide chips
         const isRecommending = RECOMMENDATION_PATTERNS.some(pattern => message.includes(pattern)) ||
                                (message.includes('recommend') && message.includes('for you'));
@@ -819,7 +966,8 @@ class ChatApp {
     }
     
     showDiscoveryChips(label, options) {
-        this.discoveryLabel.textContent = label;
+        // Label is hidden - question appears only in chat message
+        // this.discoveryLabel.textContent = label;
         this.discoveryChips.innerHTML = '';
         
         options.forEach(option => {
@@ -849,7 +997,15 @@ class ChatApp {
         });
         
         this.discoveryContainer.style.display = 'block';
-        this.messageInput.style.display = 'none';
+        
+        // Keep input visible for services-interest chips (users can type or click chips)
+        // Hide input for other discovery questions
+        const isServicesInterest = label === 'What are you interested in?';
+        if (!isServicesInterest) {
+            this.messageInput.style.display = 'none';
+        } else {
+            this.messageInput.style.display = 'block';
+        }
         
         // Scroll to bottom to ensure chips are visible
         this.scrollToBottom();
