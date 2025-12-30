@@ -51,7 +51,15 @@ const DISCOVERY_PATTERNS = [
             { value: 'Not sure / open to recommendations', text: 'Not sure / open to recommendations' }
         ],
         match: (msg) => {
-            // Optimization #3: Early returns for exclusions
+            // Check-in frequency is ONLY asked for NUTRITION coaching (Flow 3)
+            // NOT for training flows (Flow 1 and Flow 2)
+            
+            // Must be in nutrition context
+            const isNutritionContext = msg.includes('nutrition');
+            if (!isNutritionContext) {
+                return false;
+            }
+            
             // Don't match if this is a services listing or general information
             if (msg.includes('we offer') || 
                 (msg.includes('services') && (msg.includes('include') || msg.includes('variety'))) ||
@@ -79,17 +87,17 @@ const DISCOVERY_PATTERNS = [
                               msg.includes('do you') ||
                               msg.includes('prefer');
             
-            // Primary match: "how often" + "check in"
+            // Primary match: "how often" + "check in" in nutrition context
             if (hasFrequency && hasCheckIn) {
                 return true;
             }
             
-            // Secondary match: "how often" in coaching/nutrition context (must be a question)
-            if (hasFrequency && (hasCheckIn || msg.includes('coaching') || msg.includes('nutrition')) && isQuestion) {
+            // Secondary match: "how often" in nutrition context (must be a question)
+            if (hasFrequency && isQuestion) {
                 return true;
             }
             
-            // Match explicit options
+            // Match explicit options in nutrition context
             return hasOptions;
         },
         priority: 20
@@ -124,26 +132,51 @@ const DISCOVERY_PATTERNS = [
             { value: 'Not sure / open to recommendations', text: 'Not sure / open to recommendations' }
         ],
         match: (msg) => {
-            const isAskingAboutCoachingMode = msg.includes('online coaching') || msg.includes('in-person coaching');
-            const hasWeeklyFortnightly = msg.includes('weekly') || msg.includes('fortnightly');
-            const hasCheckIn = msg.includes('check-in') || msg.includes('check in');
+            const msgLower = msg.toLowerCase();
+            const isAskingAboutCoachingMode = msgLower.includes('online coaching') || msgLower.includes('in-person coaching');
+            const hasOnlineAndInPerson = msgLower.includes('online') && msgLower.includes('in-person');
+            const hasWeeklyFortnightly = msgLower.includes('weekly') || msgLower.includes('fortnightly');
+            const hasCheckIn = msgLower.includes('check-in') || msgLower.includes('check in');
             const isCheckInQuestion = hasWeeklyFortnightly && hasCheckIn;
-            const isAskingPackageType = (msg.includes('training only') || msg.includes('full athlete package')) &&
-                                        (msg.includes('would you like') || msg.includes('would you prefer')) &&
-                                        !msg.includes('coaching preference') && !isAskingAboutCoachingMode;
+            const isAskingPackageType = (msgLower.includes('training only') || msgLower.includes('full athlete package')) &&
+                                        (msgLower.includes('would you like') || msgLower.includes('would you prefer')) &&
+                                        !msgLower.includes('coaching preference') && !isAskingAboutCoachingMode;
 
             if (isCheckInQuestion || isAskingPackageType) return false;
 
-            return msg.includes('coaching preference') ||
-                   msg.includes('open to recommendations') ||
-                   (msg.includes('would you prefer') && isAskingAboutCoachingMode && !msg.includes('training only')) ||
-                   msg.includes('prefer online coaching') ||
-                   msg.includes('prefer in-person') ||
-                   (msg.includes('online coaching') && msg.includes('in-person coaching') &&
-                    (msg.includes('prefer') || msg.includes('recommendation') || 
-                     msg.includes('open to') || msg.includes('would you')));
+            return msgLower.includes('coaching preference') ||
+                   msgLower.includes('open to recommendations') ||
+                   (msgLower.includes('would you prefer') && (isAskingAboutCoachingMode || hasOnlineAndInPerson) && !msgLower.includes('training only')) ||
+                   (msgLower.includes('works better for you') && hasOnlineAndInPerson) ||
+                   msgLower.includes('prefer online coaching') ||
+                   msgLower.includes('prefer in-person') ||
+                   (hasOnlineAndInPerson && msgLower.includes('coaching') &&
+                    (msgLower.includes('prefer') || msgLower.includes('recommendation') || 
+                     msgLower.includes('open to') || msgLower.includes('would you') || msgLower.includes('works better')));
         },
         priority: 60
+    },
+    {
+        id: 'coaching-preference-after-suggestion',
+        label: 'Would you prefer in-person or online?',
+        options: [
+            { value: 'In-person club coaching', text: 'In-person club coaching' },
+            { value: 'Online coaching', text: 'Online coaching' }
+        ],
+        match: (msg) => {
+            // Match the specific message after suggesting what beginners usually do
+            // This is for ROUTE C where "Not sure" option should NOT appear
+            const msgLower = msg.toLowerCase();
+            const hasBeginnerSuggestion = msgLower.includes("totally fine") && 
+                                          msgLower.includes("beginners feel the same");
+            const hasInPersonRecommendation = msgLower.includes("usually recommend starting in person") ||
+                                              msgLower.includes("recommend starting in person");
+            const hasPreferQuestion = msgLower.includes("would you prefer in-person or online") ||
+                                      msgLower.includes("prefer in-person or online");
+            
+            return (hasBeginnerSuggestion || hasInPersonRecommendation) && hasPreferQuestion;
+        },
+        priority: 3  // Must be LOWER than regular coaching-preference (60) to match first (lower = higher priority)
     },
     {
         id: 'services-interest',
@@ -564,23 +597,6 @@ const DISCOVERY_PATTERNS = [
         },
         priority: 88
     },
-    {
-        id: 'one-to-one-addon-simple',
-        label: 'Would you like to add 1-to-1 coaching?',
-        options: [
-            { value: 'Yes, I\'d like to add on', text: 'Yes, I\'d like to add on' },
-            { value: 'No', text: 'No' }
-        ],
-        match: (msg) => {
-            // Match simpler 1-to-1 add-on questions (without mentioning specific coaching type)
-            return (msg.includes('add 1-to-1') || msg.includes('add on') || msg.includes('add-on')) &&
-                   (msg.includes('would you like') || msg.includes('interested')) &&
-                   msg.includes('?') &&
-                   !msg.includes('club coaching would suit') &&
-                   !msg.includes('online coaching would suit');
-        },
-        priority: 93
-    }
 ];
 
 // Pre-sort patterns by priority once (performance optimization)
@@ -596,8 +612,8 @@ const PATTERN_GROUPS = {
     competition: ['competed-before', 'package-type', 'does-this-suit-you'],
     nutrition: ['nutrition-goal', 'nutrition-struggles-direct', 'nutrition-structure-checkins',
                 'nutrition-guidance-preference', 'nutrition-consistency-checkins', 
-                'nutrition-meal-planning-preference'],
-    common: ['check-in-frequency', 'one-to-one-addon', 'one-to-one-addon-online', 'one-to-one-addon-simple']
+                'nutrition-meal-planning-preference', 'check-in-frequency'],
+    common: ['one-to-one-addon', 'one-to-one-addon-online']
 };
 
 // Create lookup map for quick pattern access by ID (future optimization)
