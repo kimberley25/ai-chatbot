@@ -4,11 +4,12 @@ from typing import Dict, Optional
 
 def extract_handover_info(message: str) -> Optional[Dict[str, str]]:
     """
-    Extract name, mobile, goal, and plan from handover confirmation message.
+    Extract name, mobile, email, goal, and plan from handover confirmation message.
 
     Expected format:
     Name: [User's name]
     Mobile: [Contact number]
+    Email: [Email address]
     Goal: [Primary goal]
     Plan: [Coaching option of interest]
 
@@ -16,7 +17,7 @@ def extract_handover_info(message: str) -> Optional[Dict[str, str]]:
         message: The handover confirmation message from the assistant
 
     Returns:
-        Dictionary with keys: name, mobile, goal, plan
+        Dictionary with keys: name, mobile, email, goal, plan
         Returns None if extraction fails
     """
     if not message:
@@ -25,7 +26,8 @@ def extract_handover_info(message: str) -> Optional[Dict[str, str]]:
     # Pattern to match the handover format
     # Handles variations in spacing and formatting
     name_pattern = r"Name:\s*(.+?)(?:\n|Mobile:|$)"
-    mobile_pattern = r"Mobile:\s*(.+?)(?:\n|Goal:|$)"
+    mobile_pattern = r"Mobile:\s*(.+?)(?:\n|Email:|Goal:|$)"
+    email_pattern = r"Email:\s*(.+?)(?:\n|Goal:|$)"
     goal_pattern = r"Goal:\s*(.+?)(?:\n|Plan:|$)"
     plan_pattern = r"Plan:\s*(.+?)(?:\n|$)"
 
@@ -40,6 +42,11 @@ def extract_handover_info(message: str) -> Optional[Dict[str, str]]:
     mobile_match = re.search(mobile_pattern, message, re.IGNORECASE | re.MULTILINE)
     if mobile_match:
         extracted["mobile"] = mobile_match.group(1).strip()
+
+    # Extract email
+    email_match = re.search(email_pattern, message, re.IGNORECASE | re.MULTILINE)
+    if email_match:
+        extracted["email"] = email_match.group(1).strip()
 
     # Extract goal
     goal_match = re.search(goal_pattern, message, re.IGNORECASE | re.MULTILINE)
