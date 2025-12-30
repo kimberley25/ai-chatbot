@@ -133,6 +133,13 @@ const DISCOVERY_PATTERNS = [
         ],
         match: (msg) => {
             const msgLower = msg.toLowerCase();
+            
+            // Don't match if this is a recommendation message (handled by sounds-good-recommendation)
+            const isRecommendation = msgLower.includes('from what you\'ve told me') && 
+                                   msgLower.includes('i\'d go with') &&
+                                   msgLower.includes('suits you because');
+            if (isRecommendation) return false;
+            
             const isAskingAboutCoachingMode = msgLower.includes('online coaching') || msgLower.includes('in-person coaching');
             const hasOnlineAndInPerson = msgLower.includes('online') && msgLower.includes('in-person');
             const hasWeeklyFortnightly = msgLower.includes('weekly') || msgLower.includes('fortnightly');
@@ -258,30 +265,18 @@ const DISCOVERY_PATTERNS = [
         id: 'one-to-one-addon',
         label: 'Would you like to add 1-to-1 coaching?',
         options: [
-            { value: 'Yes, add 1-to-1 coaching', text: 'Yes, add 1-to-1 coaching' },
-            { value: 'No, just Club Coaching', text: 'No, just Club Coaching' }
+            { value: 'Yes, add on 1-to-1 coaching', text: 'Yes, add on 1-to-1 coaching' },
+            { value: 'No, not right now', text: 'No, not right now' }
         ],
         match: (msg) => {
-            return (msg.includes('1-to-1') || msg.includes('one-to-one')) &&
-                   (msg.includes('add-on') || msg.includes('adding') || msg.includes('interested in adding') || msg.includes('add')) &&
-                   (msg.includes('?') || msg.includes('would you'));
+            const msgLower = msg.toLowerCase();
+            const hasOneToOne = msgLower.includes('1-to-1') || msgLower.includes('one-to-one');
+            const hasAdd = msgLower.includes('add-on') || msgLower.includes('adding') || msgLower.includes('interested in adding') || msgLower.includes('add');
+            const hasQuestion = msg.includes('?') || msgLower.includes('would you') || msgLower.includes('what do you think');
+            
+            return hasOneToOne && hasAdd && hasQuestion;
         },
         priority: 95
-    },
-    {
-        id: 'one-to-one-addon-online',
-        label: 'Would you like to add 1-to-1 coaching?',
-        options: [
-            { value: 'Yes, add 1-to-1 coaching', text: 'Yes, add 1-to-1 coaching' },
-            { value: 'No, just Weekly Online Coaching', text: 'No, just Weekly Online Coaching' }
-        ],
-        match: (msg) => {
-            return (msg.includes('1-to-1') || msg.includes('one-to-one')) &&
-                   (msg.includes('add-on') || msg.includes('adding') || msg.includes('interested in adding') || msg.includes('add')) &&
-                   (msg.includes('online coaching') || msg.includes('Online Coaching')) &&
-                   (msg.includes('?') || msg.includes('would you'));
-        },
-        priority: 96
     },
     {
         id: 'nutrition-goal',
@@ -559,6 +554,31 @@ const DISCOVERY_PATTERNS = [
         priority: 85
     },
     {
+        id: 'sounds-good-recommendation',
+        label: 'Sounds good?',
+        options: [
+            { value: 'Sounds good', text: 'Sounds good' }
+        ],
+        match: (msg) => {
+            // Match when bot recommends Weekly Online Coaching without asking a question
+            // This is for the first message in the two-step recommendation flow
+            // Must have HIGHER priority (lower number) than coaching-preference (60) to match first
+            const msgLower = msg.toLowerCase();
+            const isRecommendation = msgLower.includes('from what you\'ve told me') && 
+                                   msgLower.includes('i\'d go with');
+            const hasWeeklyOnlineCoaching = msgLower.includes('weekly online coaching');
+            const hasReason = msgLower.includes('suits you because') || 
+                            msgLower.includes('because it focuses');
+            const noQuestion = !msg.includes('?') && 
+                             !msgLower.includes('what do you think') &&
+                             !msgLower.includes('does this sound') &&
+                             !msgLower.includes('would you prefer');
+            
+            return isRecommendation && hasWeeklyOnlineCoaching && hasReason && noQuestion;
+        },
+        priority: 50  // Higher priority than coaching-preference (60) - lower number = higher priority
+    },
+    {
         id: 'does-this-suit-you',
         label: 'Does this suit you?',
         options: [
@@ -613,7 +633,7 @@ const PATTERN_GROUPS = {
     nutrition: ['nutrition-goal', 'nutrition-struggles-direct', 'nutrition-structure-checkins',
                 'nutrition-guidance-preference', 'nutrition-consistency-checkins', 
                 'nutrition-meal-planning-preference', 'check-in-frequency'],
-    common: ['one-to-one-addon', 'one-to-one-addon-online']
+    common: ['one-to-one-addon']
 };
 
 // Create lookup map for quick pattern access by ID (future optimization)

@@ -242,8 +242,11 @@ def send_message():
                     'plan': handover_info.get('plan', '')
                 }
                 
-                # Try to extract email from conversation messages
-                email = extract_email_from_conversation(chat_sessions[conversation_id]["messages"])
+                # First try to get email from handover confirmation
+                email = handover_info.get('email', '')
+                # Fallback to conversation search if not in confirmation
+                if not email:
+                    email = extract_email_from_conversation(chat_sessions[conversation_id]["messages"])
                 if email:
                     contact_info['email'] = email
                 
