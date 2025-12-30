@@ -89,7 +89,7 @@
                 <button class="modal-close" id="modalClose" aria-label="Close modal">&times;</button>
             </div>
             <div class="modal-body">
-                <p>We'd love to connect you with one of our coaches. Please share your contact information below.</p>
+                <p>We'd love to connect you with one of our coaches. Please share your contact information and let us know how we can help.</p>
 
                 <form id="escalationForm">
                     <div class="form-group">
@@ -102,9 +102,21 @@
                         <input type="tel" id="escalationPhone" name="phone" required placeholder="Your mobile number">
                     </div>
 
+                    <div class="form-group">
+                        <label for="escalationEmail">Email Address *</label>
+                        <input type="email" id="escalationEmail" name="email" required placeholder="your.email@example.com">
+                        <small class="form-help">We'll send you a confirmation and our team will be in touch</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="escalationIssue">What can we help you with? *</label>
+                        <textarea id="escalationIssue" name="issue" required rows="4" placeholder="Tell us about your question, concern, or what you'd like help with..."></textarea>
+                        <small class="form-help">This helps us prepare and connect you with the right person</small>
+                    </div>
+
                     <div class="modal-actions">
                         <button type="button" class="btn btn-secondary" id="cancelEscalation">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Continue</button>
+                        <button type="submit" class="btn btn-primary">Submit Request</button>
                     </div>
                 </form>
             </div>

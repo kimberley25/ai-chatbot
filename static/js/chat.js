@@ -412,27 +412,40 @@ class ChatApp {
         const userText = userMessages.join(' ').toLowerCase();
         const fullUserText = userMessages.join(' ').toLowerCase();
         
-        // Extract experience level
-        if (fullUserText.includes('beginner')) {
-            experienceLevel = 'beginner';
-        } else if (fullUserText.includes('intermediate')) {
-            experienceLevel = 'intermediate';
-        } else if (fullUserText.includes('advanced') || fullUserText.includes('competitive')) {
-            experienceLevel = 'advanced';
+        // First, try to extract from handover confirmation in assistant messages (most accurate)
+        const handoverGoalPattern = /Goal:\s*(.+?)(?:\n|Plan:|$)/i;
+        for (const msg of assistantMessages) {
+            const match = msg.match(handoverGoalPattern);
+            if (match) {
+                goal = match[1].trim();
+                break;
+            }
         }
         
-        // Extract goal
-        if (userText.includes('compete') || userText.includes('competition')) {
-            goal = 'Competition prep';
-        } else if (userText.includes('stronger') || userText.includes('strength') || userText.includes('powerlifting')) {
-            goal = 'Build strength';
-        } else if (userText.includes('nutrition') || userText.includes('fat loss') || userText.includes('muscle gain')) {
-            goal = 'Nutrition Coaching';
-        }
-        
-        // Append experience level to goal if available
-        if (goal !== 'General Inquiry' && experienceLevel) {
-            goal = `${goal} (${experienceLevel})`;
+        // If not found in handover, extract from user messages
+        if (goal === 'General Inquiry') {
+            // Extract experience level
+            if (fullUserText.includes('beginner')) {
+                experienceLevel = 'beginner';
+            } else if (fullUserText.includes('intermediate')) {
+                experienceLevel = 'intermediate';
+            } else if (fullUserText.includes('advanced') || fullUserText.includes('competitive')) {
+                experienceLevel = 'advanced';
+            }
+            
+            // Extract goal
+            if (userText.includes('compete') || userText.includes('competition')) {
+                goal = 'Competition prep';
+            } else if (userText.includes('stronger') || userText.includes('strength') || userText.includes('powerlifting')) {
+                goal = 'Build strength';
+            } else if (userText.includes('nutrition') || userText.includes('fat loss') || userText.includes('muscle gain')) {
+                goal = 'Nutrition Coaching';
+            }
+            
+            // Append experience level to goal if available
+            if (goal !== 'General Inquiry' && experienceLevel) {
+                goal = `${goal} (${experienceLevel})`;
+            }
         }
         
         // Extract plan from user selections
@@ -491,35 +504,76 @@ class ChatApp {
             }
         } else {
             // If no plan parts found, try to extract from assistant messages
-            const assistantText = assistantMessages.join(' ').toLowerCase();
-            if (assistantText.includes('online coaching')) {
-                plan = 'Online coaching';
-            } else if (assistantText.includes('club coaching')) {
-                plan = 'Club coaching';
-            } else if (assistantText.includes('nutrition coaching')) {
-                plan = 'Nutrition coaching';
+            // First check for handover confirmation format (most accurate)
+            const handoverPlanPattern = /Plan:\s*(.+?)(?:\n|$)/i;
+            for (const msg of assistantMessages) {
+                const match = msg.match(handoverPlanPattern);
+                if (match) {
+                    plan = match[1].trim();
+                    break;
+                }
+            }
+            
+            // Fallback to keyword matching if handover format not found
+            if (plan === 'Not specified') {
+                const assistantText = assistantMessages.join(' ').toLowerCase();
+                if (assistantText.includes('online coaching')) {
+                    plan = 'Online coaching';
+                } else if (assistantText.includes('club coaching')) {
+                    plan = 'Club coaching';
+                } else if (assistantText.includes('nutrition coaching')) {
+                    plan = 'Nutrition coaching';
+                }
             }
         }
         
         return { goal, plan };
     }
     
-    displayHandoverSummary(name, mobile, goal, plan) {
-        const summary = `Name: ${name}\nMobile: ${mobile}\nGoal: ${goal}\nPlan: ${plan}`;
-        // Hide chips before displaying handover summary
+    displayEscalationConfirmation() {
+        const confirmation = "We've received your details, and we will be in touch soon. Feel free to ask me if you have any other questions!";
+        // Hide chips before displaying confirmation
         this.hideDiscoveryChips();
-        this.addMessage('assistant', summary);
+        this.addMessage('assistant', confirmation);
         // Ensure chips stay hidden after adding the message
         setTimeout(() => {
             this.hideDiscoveryChips();
         }, 50);
     }
     
+    async extractConversationContext() {
+        // Extract recent conversation context for high priority escalations
+        let contextMessages = [];
+        
+        try {
+            const response = await fetch('/api/get_history');
+            const data = await response.json();
+            
+            if (data.success && data.messages) {
+                // Get last 10 messages for context (excluding system messages)
+                const recentMessages = data.messages
+                    .filter(msg => msg.role !== 'system')
+                    .slice(-10);
+                
+                contextMessages = recentMessages.map(msg => ({
+                    role: msg.role,
+                    content: msg.content
+                }));
+            }
+        } catch (error) {
+            console.error('Error fetching conversation history:', error);
+        }
+        
+        return contextMessages;
+    }
+    
     async submitEscalation() {
         const name = document.getElementById('escalationName').value.trim();
         const mobile = document.getElementById('escalationPhone').value.trim();
+        const email = document.getElementById('escalationEmail').value.trim();
+        const issue = document.getElementById('escalationIssue').value.trim();
         
-        if (!name || !mobile) {
+        if (!name || !mobile || !email || !issue) {
             alert('Please fill in all required fields.');
             return;
         }
@@ -527,11 +581,14 @@ class ChatApp {
         // Extract goal and plan from conversation
         const { goal, plan } = await this.extractGoalAndPlan();
         
+        // Extract conversation context for high priority escalation
+        const conversationContext = await this.extractConversationContext();
+        
         // Close modal first
         this.closeEscalationModal();
         
-        // Display handover summary BEFORE submitting
-        this.displayHandoverSummary(name, mobile, goal, plan);
+        // Display confirmation message
+        this.displayEscalationConfirmation();
         
         // Wait a moment for the message to display, then submit escalation
         setTimeout(async () => {
@@ -544,10 +601,13 @@ class ChatApp {
                         contact_info: {
                             name: name,
                             phone: mobile,
+                            email: email,
                             goal: goal,
-                            plan: plan
+                            plan: plan,
+                            issue: issue,
+                            conversation_context: conversationContext
                         },
-                        reason: 'Customer requested human assistance'
+                        reason: 'Customer requested immediate human assistance'
                     })
                 });
                 
@@ -555,9 +615,11 @@ class ChatApp {
                 
                 if (!data.success) {
                     console.error('Failed to submit escalation:', data.error);
+                    alert('Failed to submit your request. Please try again.');
                 }
             } catch (error) {
                 console.error('Error submitting escalation:', error);
+                alert('An error occurred. Please try again.');
             }
         }, 500);
     }

@@ -26,6 +26,18 @@ SESSION_COOKIE_HTTPONLY = os.getenv('SESSION_COOKIE_HTTPONLY', 'True').lower() =
 SESSION_COOKIE_SAMESITE = os.getenv('SESSION_COOKIE_SAMESITE', 'Lax')
 SESSION_CLEANUP_INTERVAL_MINUTES = int(os.getenv('SESSION_CLEANUP_INTERVAL_MINUTES', '60'))
 
+# Email configuration
+MAIL_SERVER = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
+MAIL_PORT = int(os.getenv('MAIL_PORT', '587'))
+MAIL_USE_TLS = os.getenv('MAIL_USE_TLS', 'True').lower() == 'true'
+MAIL_USE_SSL = os.getenv('MAIL_USE_SSL', 'False').lower() == 'true'
+MAIL_USERNAME = os.getenv('MAIL_USERNAME', '')
+MAIL_PASSWORD = os.getenv('MAIL_PASSWORD', '')
+MAIL_FROM_EMAIL = os.getenv('MAIL_FROM_EMAIL', MAIL_USERNAME)
+MAIL_FROM_NAME = os.getenv('MAIL_FROM_NAME', 'Strength Club')
+MAIL_SUBJECT_LOW = os.getenv('MAIL_SUBJECT_LOW', 'Thank You for Your Interest - Strength Club')
+MAIL_SUBJECT_HIGH = os.getenv('MAIL_SUBJECT_HIGH', 'Your Request Has Been Received - Strength Club')
+
 SYSTEM_PROMPT_FILE = os.getenv('SYSTEM_PROMPT_FILE', 'system_prompt.txt')
 SYSTEM_PROMPT_DIR = os.getenv('SYSTEM_PROMPT_DIR', 'prompts')
 

@@ -230,7 +230,7 @@ const DISCOVERY_PATTERNS = [
         ],
         match: (msg) => {
             return (msg.includes('1-to-1') || msg.includes('one-to-one')) &&
-                   (msg.includes('add-on') || msg.includes('adding') || msg.includes('interested in adding')) &&
+                   (msg.includes('add-on') || msg.includes('adding') || msg.includes('interested in adding') || msg.includes('add')) &&
                    (msg.includes('?') || msg.includes('would you'));
         },
         priority: 95
@@ -244,7 +244,7 @@ const DISCOVERY_PATTERNS = [
         ],
         match: (msg) => {
             return (msg.includes('1-to-1') || msg.includes('one-to-one')) &&
-                   (msg.includes('add-on') || msg.includes('adding') || msg.includes('interested in adding')) &&
+                   (msg.includes('add-on') || msg.includes('adding') || msg.includes('interested in adding') || msg.includes('add')) &&
                    (msg.includes('online coaching') || msg.includes('Online Coaching')) &&
                    (msg.includes('?') || msg.includes('would you'));
         },
@@ -533,6 +533,14 @@ const DISCOVERY_PATTERNS = [
             { value: 'No, I\'d prefer something else', text: 'No, I\'d prefer something else' }
         ],
         match: (msg) => {
+            // Don't match if this is asking about adding 1-to-1 coaching (handled by one-to-one-addon pattern)
+            const isOneToOneAddonQuestion = (msg.includes('1-to-1') || msg.includes('one-to-one')) &&
+                                           (msg.includes('add') || msg.includes('add-on') || msg.includes('adding'));
+            
+            if (isOneToOneAddonQuestion) {
+                return false;
+            }
+            
             return msg.includes('does this suit you') ||
                    (msg.includes('suit you') && msg.includes('?'));
         },

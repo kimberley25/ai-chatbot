@@ -184,7 +184,7 @@ def delete_conversation(conversation_id):
 # ESCALATION FUNCTIONS
 # ============================================================================
 
-def save_escalation(conversation_id, reason, contact_info):
+def save_escalation(conversation_id, reason, contact_info, priority='low'):
     """
     Save escalation request.
     
@@ -192,6 +192,13 @@ def save_escalation(conversation_id, reason, contact_info):
         conversation_id: Unique identifier for the conversation
         reason: Reason for escalation
         contact_info: Dictionary containing user contact information
+            Expected keys:
+                - name, mobile (required)
+                - email (optional, required for email notifications)
+                - goal, plan (optional, for low priority escalations)
+                - issue (optional, for high priority escalations - user's concern/question)
+                - conversation_context (optional, for high priority escalations)
+        priority: Priority level - 'low' for normal handover, 'high' for urgent requests
     
     Returns:
         Dictionary containing escalation data, or None on error
@@ -201,6 +208,7 @@ def save_escalation(conversation_id, reason, contact_info):
         'timestamp': datetime.now().isoformat(),
         'reason': reason,
         'contact_info': contact_info,
+        'priority': priority,  # 'low' or 'high'
         'status': 'pending'
     }
     
