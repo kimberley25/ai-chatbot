@@ -24,19 +24,27 @@ class ChatBot:
     and detects when escalation to human support is needed.
     """
     
-    # Escalation detection patterns
+    # Escalation detection patterns for high-priority requests
     ESCALATION_PATTERNS = [
         r"i cannot help with",
         r"i can't help with",
         r"i'm unable to help",
         r"escalate",
         r"human assistance needed",
-        r"speak to a (?:human|person|representative|agent|support)",
-        r"transfer to (?:human|person|representative|agent|support)",
-        r"connect me with (?:a )?(?:human|person|representative|agent|support)",
-        r"talk to (?:a )?(?:human|person|representative|agent|support)",
-        r"need (?:a )?(?:human|person|representative|agent|support)",
-        r"want (?:to )?speak (?:to|with) (?:a )?(?:human|person|representative|agent|support)",
+        r"speak to (?:a )?(?:human|person|representative|agent|support|coach)",
+        r"speak with (?:a )?(?:human|person|representative|agent|support|coach)",
+        r"transfer to (?:human|person|representative|agent|support|coach)",
+        r"connect me with (?:a )?(?:human|person|representative|agent|support|coach)",
+        r"talk to (?:a )?(?:human|person|representative|agent|support|coach)",
+        r"talk with (?:a )?(?:human|person|representative|agent|support|coach)",
+        r"need (?:a )?(?:human|person|representative|agent|support|coach)",
+        r"want (?:to )?speak (?:to|with) (?:a )?(?:human|person|representative|agent|support|coach)",
+        r"can i (?:speak|talk) (?:to|with) (?:a )?(?:human|person|representative|agent|support|coach)",
+        r"i want (?:to )?(?:speak|talk) (?:to|with) (?:a )?(?:human|person|representative|agent|support|coach)",
+        r"i need (?:to )?(?:speak|talk) (?:to|with) (?:a )?(?:human|person|representative|agent|support|coach)",
+        r"let me (?:speak|talk) (?:to|with) (?:a )?(?:human|person|representative|agent|support|coach)",
+        r"get me (?:a )?(?:human|person|representative|agent|support|coach)",
+        r"i'd like (?:to )?(?:speak|talk) (?:to|with) (?:a )?(?:human|person|representative|agent|support|coach)",
     ]
     
     def __init__(self, system_prompt: str = None):
@@ -65,7 +73,7 @@ class ChatBot:
         
         logger.info(f"ChatBot initialized with model: {self.model}")
     
-    def _detect_escalation(self, text: str) -> bool:
+    def detect_escalation(self, text: str) -> bool:
         """
         Detect if text contains escalation indicators.
         
@@ -141,7 +149,7 @@ class ChatBot:
         # Check user message for explicit escalation request
         user_escalation = False
         if user_message:
-            user_escalation = self._detect_escalation(user_message)
+            user_escalation = self.detect_escalation(user_message)
             if user_escalation:
                 logger.info("User explicitly requested escalation")
         
@@ -165,7 +173,7 @@ class ChatBot:
                 raise ValueError("Empty response from OpenAI API")
             
             # Check bot response for escalation indicators
-            bot_escalation = self._detect_escalation(bot_response)
+            bot_escalation = self.detect_escalation(bot_response)
             
             # Escalation needed if user requested it OR bot indicates it can't help
             escalation_flag = user_escalation or bot_escalation

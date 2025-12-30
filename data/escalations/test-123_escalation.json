@@ -1,9 +1,0 @@
-{
-  "conversation_id": "test-123",
-  "timestamp": "2025-12-27T09:09:13.556757",
-  "reason": "Need help",
-  "contact_info": {
-    "email": "test@example.com"
-  },
-  "status": "pending"
-}

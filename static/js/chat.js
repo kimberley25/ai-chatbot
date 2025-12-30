@@ -16,596 +16,17 @@ const ICONS = {
 
 const WELCOME_MESSAGE = "Welcome to Strength Club! I'm here if you have any questions about training, nutrition, or coaching. What can I help you with today?";
 
-// Discovery question patterns - data-driven configuration
-// Each pattern has: id, label, options, and match conditions
-const DISCOVERY_PATTERNS = [
-    {
-        id: 'package-type',
-        label: 'What would you like?',
-        options: [
-            { value: 'Training only', text: 'Training only' },
-            { value: 'Full Athlete Package (training + nutrition)', text: 'Full Athlete Package (training + nutrition)' }
-        ],
-        match: (msg) => {
-            // Don't match on goal classification questions
-            // But allow "nutrition support" when it's describing a package (e.g., "includes nutrition support")
-            const isGoalQuestion = msg.includes('getting stronger') || 
-                                  msg.includes('preparing for a competition') ||
-                                  (msg.includes('nutrition support') && !msg.includes('includes nutrition support') && !msg.includes('full athlete package')) ||
-                                  (msg.includes('mainly looking for') && (msg.includes('stronger') || msg.includes('competition') || msg.includes('nutrition')));
-            
-            if (isGoalQuestion) {
-                return false;
-            }
-            
-            return (msg.includes('training only') || msg.includes('training-only') || msg.includes('full athlete package')) &&
-                   (msg.includes('would you') || msg.includes('prefer') || msg.includes('choose') || 
-                    msg.includes('interested in') || msg.includes('which'));
-        },
-        priority: 10
-    },
-    {
-        id: 'check-in-frequency',
-        label: 'How often would you like check-ins?',
-        options: [
-            { value: 'Weekly check-ins', text: 'Weekly' },
-            { value: 'Fortnightly check-ins', text: 'Fortnightly' },
-            { value: 'Not sure / open to recommendations', text: 'Not sure / open to recommendations' }
-        ],
-        match: (msg) => {
-            // Don't match if this is a services listing or general information
-            const isServicesListing = msg.includes('we offer') || 
-                                     msg.includes('services') && (msg.includes('include') || msg.includes('variety')) ||
-                                     msg.includes('coaching services') && msg.includes('including');
-            
-            if (isServicesListing) {
-                return false;
-            }
-            
-            // Don't match support preference questions (handled by specific patterns)
-            if (msg.includes('what kind of support would help you most') ||
-                msg.includes('what kind of support would help you stay on track') ||
-                (msg.includes('what kind of support') && msg.includes('help you'))) {
-                return false;
-            }
-            
-            // Match if asking about check-in frequency
-            // Check for "check" and "in" together (handles "check in", "check-in", "checkin")
-            const hasCheckIn = (msg.includes('check') && msg.includes('in')) ||
-                              msg.includes('check-in') || 
-                              msg.includes('checkin');
-            
-            // Check for frequency-related keywords (must be a question)
-            const hasFrequency = msg.includes('how often') || 
-                                msg.includes('frequency');
-            
-            // Match if explicitly mentioning weekly/fortnightly options in a question
-            const hasOptions = msg.includes('weekly or fortnightly') ||
-                              msg.includes('fortnightly or weekly') ||
-                              msg.includes('prefer weekly or fortnightly');
-            
-            // Primary match: "how often" + "check in" (most common pattern - must be a question)
-            if (hasFrequency && hasCheckIn) {
-                return true;
-            }
-            
-            // Secondary match: "how often" in coaching/nutrition context (must be a question)
-            // This catches questions like "How often would you like to check in?"
-            if (hasFrequency && (hasCheckIn || msg.includes('coaching') || msg.includes('nutrition'))) {
-                // Make sure it's actually asking a question, not just listing
-                const isQuestion = msg.includes('?') || 
-                                  msg.includes('would you') || 
-                                  msg.includes('do you') ||
-                                  msg.includes('prefer');
-                if (isQuestion) {
-                    return true;
-                }
-            }
-            
-            // Match explicit options (must be a question)
-            if (hasOptions) {
-                return true;
-            }
-            
-            return false;
-        },
-        priority: 20
-    },
-    {
-        id: 'training-experience',
-        label: 'What is your training experience level?',
-        options: [
-            { value: 'Beginner', text: 'Beginner' },
-            { value: 'Intermediate', text: 'Intermediate' },
-            { value: 'Advanced', text: 'Advanced' }
-        ],
-        match: (msg) => {
-            return msg.includes('training experience') ||
-                   msg.includes('experience level') ||
-                   msg.includes('what is your experience') ||
-                   msg.includes('describe your training experience') ||
-                   msg.includes('let me know your training experience') ||
-                   msg.includes('are you a beginner') ||
-                   msg.includes('beginner, intermediate') ||
-                   msg.includes('advanced/competitive') ||
-                   msg.includes('advanced or competitive');
-        },
-        priority: 30
-    },
-    {
-        id: 'coaching-preference',
-        label: 'What is your coaching preference?',
-        options: [
-            { value: 'Online coaching', text: 'Online coaching' },
-            { value: 'In-person coaching', text: 'In-person coaching' },
-            { value: 'Not sure / open to recommendations', text: 'Not sure / open to recommendations' }
-        ],
-        match: (msg) => {
-            const isAskingAboutCoachingMode = msg.includes('online coaching') || msg.includes('in-person coaching');
-            const hasWeeklyFortnightly = msg.includes('weekly') || msg.includes('fortnightly');
-            const hasCheckIn = msg.includes('check-in') || msg.includes('check in');
-            const isCheckInQuestion = hasWeeklyFortnightly && hasCheckIn;
-            const isAskingPackageType = (msg.includes('training only') || msg.includes('full athlete package')) &&
-                                        (msg.includes('would you like') || msg.includes('would you prefer')) &&
-                                        !msg.includes('coaching preference') && !isAskingAboutCoachingMode;
+// Discovery patterns are loaded from discovery-patterns.js
+// DISCOVERY_PATTERNS, SORTED_DISCOVERY_PATTERNS, PATTERN_GROUPS, and PATTERN_BY_ID
+// are defined in that file and must be loaded before this file
 
-            if (isCheckInQuestion || isAskingPackageType) return false;
-
-            return msg.includes('coaching preference') ||
-                   msg.includes('open to recommendations') ||
-                   (msg.includes('would you prefer') && isAskingAboutCoachingMode && !msg.includes('training only')) ||
-                   msg.includes('prefer online coaching') ||
-                   msg.includes('prefer in-person') ||
-                   (msg.includes('online coaching') && msg.includes('in-person coaching') &&
-                    (msg.includes('prefer') || msg.includes('recommendation') || 
-                     msg.includes('open to') || msg.includes('would you')));
-        },
-        priority: 60
-    },
-    {
-        id: 'services-interest',
-        label: 'What are you interested in?',
-        options: [
-            { value: 'I want to get stronger', text: 'Build Strength' },
-            { value: 'I want to compete', text: 'Competition Preparation' },
-            { value: 'I need help with nutrition', text: 'Nutrition Coaching' }
-        ],
-        match: (msg) => {
-            // Don't match on welcome messages
-            const isWelcomeMessage = msg.includes('welcome') && 
-                                     (msg.includes('what can i help') || msg.includes('questions about'));
-            
-            if (isWelcomeMessage) {
-                return false;
-            }
-            
-            // Match goal classification question - highest priority
-            const isGoalClassification = (msg.includes('getting stronger') || 
-                                         msg.includes('preparing for a competition') ||
-                                         msg.includes('nutrition support') ||
-                                         msg.includes('point you in the right direction')) &&
-                                        (msg.includes('mainly looking for') || 
-                                         msg.includes('what are you') ||
-                                         msg.includes('right now'));
-            
-            if (isGoalClassification) {
-                return true;
-            }
-            
-            // Match the new shorter services explanation format
-            // Matches: "We offer five coaching options..." + "To point you in the right direction..."
-            const isShortServicesExplanation = (msg.includes('five coaching options') ||
-                                                msg.includes('coaching options, covering') ||
-                                                (msg.includes('online') && msg.includes('in-person') && msg.includes('club training'))) &&
-                                               msg.includes('point you in the right direction') &&
-                                               (msg.includes('mainly looking for') ||
-                                                msg.includes('what are you') ||
-                                                msg.includes('right now'));
-            
-            if (isShortServicesExplanation) {
-                return true;
-            }
-            
-            // Also match if message contains "five coaching options" and asks what user is looking for
-            // This catches variations of the services explanation
-            const hasFiveOptions = msg.includes('five coaching options') || 
-                                  (msg.includes('coaching options') && msg.includes('covering'));
-            const isAskingWhatLookingFor = msg.includes('mainly looking for') ||
-                                          (msg.includes('what are you') && msg.includes('looking'));
-            
-            if (hasFiveOptions && isAskingWhatLookingFor) {
-                return true;
-            }
-            
-            // Match when bot has EXPLAINED services (listed multiple services)
-            // Must have mentioned services/offer AND listed at least 2-3 specific services
-            const hasServicesContext = (msg.includes('services') || msg.includes('offer') || msg.includes('coaching options') || msg.includes('variety')) &&
-                                      (msg.includes('online coaching') || msg.includes('club coaching') ||
-                                       msg.includes('nutrition coaching') || msg.includes('1-to-1') ||
-                                       msg.includes('full athlete') || msg.includes('athlete package'));
-            
-            // Must have listed multiple services (not just mentioned one)
-            const hasMultipleServices = (msg.includes('online coaching') && msg.includes('club coaching')) ||
-                                       (msg.includes('online coaching') && msg.includes('nutrition')) ||
-                                       (msg.includes('online coaching') && msg.includes('athlete')) ||
-                                       (msg.includes('club coaching') && msg.includes('nutrition')) ||
-                                       (msg.includes('variety') && (msg.includes('coaching') || msg.includes('services')));
-            
-            // Match when explicitly asking "What are you interested in?" AFTER explaining services
-            const isAskingInterest = (msg.includes('what are you interested') ||
-                                     msg.includes('what would you like') ||
-                                     msg.includes('what can i help') ||
-                                     msg.includes('specific goal') ||
-                                     msg.includes('interested in any specific')) &&
-                                    hasServicesContext;
-            
-            // Match when bot finishes explaining services and asks what user is interested in
-            const isInvitingChoice = ((msg.includes('if you have a specific goal') ||
-                                     msg.includes('if you\'re interested') ||
-                                     msg.includes('feel free to ask') ||
-                                     msg.includes('let me know') ||
-                                     msg.includes('what are you')) &&
-                                    hasMultipleServices);
-            
-            return (hasServicesContext && hasMultipleServices) || isAskingInterest || isInvitingChoice;
-        },
-        priority: 5  // Higher priority than package-type (10) and check-in-frequency (20)
-    },
-    {
-        id: 'one-to-one-addon',
-        label: 'Would you like to add 1-to-1 coaching?',
-        options: [
-            { value: 'Yes, add 1-to-1 coaching', text: 'Yes, add 1-to-1 coaching' },
-            { value: 'No, just Club Coaching', text: 'No, just Club Coaching' }
-        ],
-        match: (msg) => {
-            return (msg.includes('1-to-1') || msg.includes('one-to-one')) &&
-                   (msg.includes('add-on') || msg.includes('adding') || msg.includes('interested in adding')) &&
-                   (msg.includes('?') || msg.includes('would you'));
-        },
-        priority: 95
-    },
-    {
-        id: 'one-to-one-addon-online',
-        label: 'Would you like to add 1-to-1 coaching?',
-        options: [
-            { value: 'Yes, add 1-to-1 coaching', text: 'Yes, add 1-to-1 coaching' },
-            { value: 'No, just Weekly Online Coaching', text: 'No, just Weekly Online Coaching' }
-        ],
-        match: (msg) => {
-            return (msg.includes('1-to-1') || msg.includes('one-to-one')) &&
-                   (msg.includes('add-on') || msg.includes('adding') || msg.includes('interested in adding')) &&
-                   (msg.includes('online coaching') || msg.includes('Online Coaching')) &&
-                   (msg.includes('?') || msg.includes('would you'));
-        },
-        priority: 96
-    },
-    {
-        id: 'nutrition-goal',
-        label: 'What is your nutrition goal?',
-        options: [
-            { value: 'Build muscle', text: 'Build muscle' },
-            { value: 'Fat loss / body recomposition', text: 'Fat loss / body recomposition' },
-            { value: 'Maintain weight / healthier lifestyle', text: 'Maintain weight / healthier lifestyle' },
-        ],
-        match: (msg) => {
-            // Don't match on goal classification or services explanation
-            const isGoalClassification = msg.includes('point you in the right direction') ||
-                                        (msg.includes('mainly looking for') && msg.includes('right now')) ||
-                                        msg.includes('five coaching options');
-            
-            // Don't match on recommendation messages
-            const isRecommendation = msg.includes('would suit you best') ||
-                                    msg.includes('Based on what you\'ve shared') ||
-                                    msg.includes('I recommend') ||
-                                    msg.includes('I\'d recommend');
-            
-            if (isGoalClassification || isRecommendation) { 
-                return false;
-            }
-            
-            // Match various forms of nutrition goal questions
-            return msg.includes('nutrition goal') ||
-                   msg.includes('what is your nutrition goal') ||
-                   (msg.includes('nutrition') && msg.includes('goal') && !msg.includes('coaching options'));
-        },
-        priority: 80
-    },
-    {
-        id: 'competed-before',
-        label: 'Have you competed before?',
-        options: [
-            { value: 'Yes, I\'ve competed before', text: 'Yes, I\'ve competed before' },
-            { value: 'No, I\'m a first time competitor', text: 'No, I\'m a first time competitor' }
-        ],
-        match: (msg) => {
-            return msg.includes('competed before') ||
-                   msg.includes('have you competed') ||
-                   msg.includes('have you ever competed') ||
-                   msg.includes('competed in a powerlifting') ||
-                   msg.includes('competed in powerlifting') ||
-                   (msg.includes('competition') && msg.includes('before') &&
-                    (msg.includes('have') || msg.includes('ever') || msg.includes('you')));
-        },
-        priority: 90
-    },
-    {
-        id: 'nutrition-struggles-direct',
-        label: 'What do you struggle with most when it comes to nutrition?',
-        options: [
-            { value: 'Knowing how much to eat', text: 'Knowing how much to eat' },
-            { value: 'Meal planning & food choices', text: 'Meal planning & food choices' },
-            { value: 'Staying consistent', text: 'Staying consistent' },
-            { value: 'Mostly want structure & check-ins', text: 'Mostly want structure & check-ins' },
-            { value: 'Something else', text: 'Something else' }
-        ],
-        match: (msg) => {
-            // Match when bot asks about nutrition struggles AFTER user selects "Not sure" for check-in frequency
-            // This should only appear after check-in frequency question, not immediately after goal selection
-            // Don't match if it's part of check-in frequency question
-            if (msg.includes('how often')) {
-                return false;
-            }
-            
-            return msg.includes('what do you struggle with most when it comes to nutrition') ||
-                   (msg.includes('what do you struggle with most') && msg.includes('nutrition')) ||
-                   (msg.includes('what do you struggle') && msg.includes('nutrition'));
-        },
-        priority: 25  // High priority - this is the main nutrition struggle question
-    },
-    {
-        id: 'nutrition-structure-checkins',
-        label: 'What level of hands-on support would work best for you?',
-        options: [
-            { value: 'More hands-on support', text: 'More hands-on support' },
-            { value: 'Balanced guidance', text: 'Balanced guidance' },
-            { value: 'Light-touch support', text: 'Light-touch support' }
-        ],
-        match: (msg) => {
-            return (msg.includes('structure and accountability') && msg.includes('what level of hands-on support')) ||
-                   (msg.includes('got it') && msg.includes('structure') && msg.includes('what level')) ||
-                   (msg.includes('mostly want structure') && msg.includes('what level')) ||
-                   (msg.includes('structure and accountability make a big difference') && msg.includes('what level'));
-        },
-        priority: 22
-    },
-    {
-        id: 'nutrition-guidance-preference',
-        label: 'How would you like to get started?',
-        options: [
-            { value: 'Plan my meals', text: 'Plan my meals' },
-            { value: 'Give me some direction', text: 'Give me some direction' },
-            { value: 'Not sure yet', text: 'Not sure yet' }
-        ],
-        match: (msg) => {
-            return (msg.includes('very common') && msg.includes('especially at the start') && msg.includes('how would you like to get started')) ||
-                   (msg.includes('knowing how much to eat') && msg.includes('how would you like to get started'));
-        },
-        priority: 22
-    },
-    {
-        id: 'nutrition-consistency-checkins',
-        label: 'What level of accountability would help you stay on track?',
-        options: [
-            { value: 'Regular accountability', text: 'Regular accountability' },
-            { value: 'Some guidance', text: 'Some guidance' },
-            { value: 'Not sure yet', text: 'Not sure yet' }
-        ],
-        match: (msg) => {
-            return msg.includes('what level of accountability would help you stay on track') ||
-                   msg.includes('what level of accountability') ||
-                   (msg.includes('consistency usually improves') && msg.includes('what level of accountability')) ||
-                   (msg.includes('regular accountability') && msg.includes('what level')) ||
-                   (msg.includes('staying consistent') && msg.includes('what level of accountability'));
-        },
-        priority: 22
-    },
-    {
-        id: 'nutrition-meal-planning-preference',
-        label: 'What would be most helpful for your meal planning?',
-        options: [
-            { value: 'Help me meal plan', text: 'Help me meal plan' },
-            { value: 'Help me fine-tune choices', text: 'Help me fine-tune choices' },
-            { value: 'I want flexibility', text: 'I want flexibility' }
-        ],
-        match: (msg) => {
-            return (msg.includes('meal planning') && msg.includes('food choices') && msg.includes('what would be most helpful')) ||
-                   (msg.includes('meal planning') && msg.includes('what would be most helpful')) ||
-                   (msg.includes('food choices') && msg.includes('what would be most helpful'));
-        },
-        priority: 22
-    },
-    {
-        id: 'nutrition-results-followup',
-        label: 'What feels stalled?',
-        options: [
-            { value: 'Fat loss', text: 'Fat loss' },
-            { value: 'Body recomposition', text: 'Body recomposition' },
-            { value: 'Energy levels', text: 'Energy levels' },
-            { value: 'Strength / performance', text: 'Strength / performance' },
-            { value: 'Something else', text: 'Something else' }
-        ],
-        match: (msg) => {
-            return msg.includes('what feels stalled') ||
-                   (msg.includes('not seeing results') && msg.includes('what feels')) ||
-                   (msg.includes('stalled') && msg.includes('what feels'));
-        },
-        priority: 23
-    },
-    {
-        id: 'nutrition-balancing-followup',
-        label: 'What makes it challenging?',
-        options: [
-            { value: 'Eating out / social events', text: 'Eating out / social events' },
-            { value: 'Work or shift hours', text: 'Work or shift hours' },
-            { value: 'Family or household meals', text: 'Family or household meals' },
-            { value: 'Stress & fatigue', text: 'Stress & fatigue' },
-            { value: 'Something else', text: 'Something else' }
-        ],
-        match: (msg) => {
-            return (msg.includes('what makes it challenging') && (msg.includes('balancing') || msg.includes('food') || msg.includes('daily life'))) ||
-                   (msg.includes('balancing food with daily life') && msg.includes('what'));
-        },
-        priority: 23
-    },
-    {
-        id: 'struggles',
-        label: 'What do you struggle with?',
-        options: [
-            { value: 'Program structure', text: 'Program structure' },
-            { value: 'Slow progress', text: 'Slow progress' },
-            { value: 'Technique & form', text: 'Technique & form' },
-            { value: 'Staying consistent', text: 'Staying consistent' },
-            { value: 'Something else', text: 'Something else' }
-        ],
-        match: (msg) => {
-            // Don't match if this is a nutrition-specific struggle question
-            const isNutritionStruggle = (msg.includes('nutrition') || msg.includes('food')) &&
-                                      (msg.includes('what feels hardest') || msg.includes('what feels most challenging'));
-            
-            if (isNutritionStruggle) {
-                return false;
-            }
-            
-            // Match the new strength flow struggle question
-            return msg.includes('what do you struggle with most') ||
-                   (msg.includes('what do you struggle') && !msg.includes('nutrition'));
-        },
-        priority: 25  // After check-in frequency (20) but before other questions
-    },
-    {
-        id: 'program-structure-followup',
-        label: 'What feels unclear about your program right now?',
-        options: [
-            { value: 'I\'m not sure how to progress', text: 'I\'m not sure how to progress' },
-            { value: 'I need a structured program', text: 'I need a structured program' },
-            { value: 'Not sure yet', text: 'Not sure yet' }
-        ],
-        match: (msg) => {
-            return msg.includes('what feels unclear about your program') ||
-                   (msg.includes('unclear') && msg.includes('program') && msg.includes('right now'));
-        },
-        priority: 22
-    },
-    {
-        id: 'slow-progress-followup',
-        label: 'What do you feel is holding your progress back most?',
-        options: [
-            { value: 'Strength isn\'t increasing / stuck', text: 'Strength isn\'t increasing / stuck' },
-            { value: 'I\'m inconsistent', text: 'I\'m inconsistent' },
-            { value: 'Not sure yet', text: 'Not sure yet' }
-        ],
-        match: (msg) => {
-            return msg.includes('what do you feel is holding your progress back') ||
-                   (msg.includes('holding') && msg.includes('progress back') && msg.includes('most'));
-        },
-        priority: 22
-    },
-    {
-        id: 'technique-form-followup',
-        label: 'What would you like help with most?',
-        options: [
-            { value: 'Not confident with my form', text: 'Not confident with my form' },
-            { value: 'Feedback on lifts', text: 'Feedback on lifts' },
-            { value: 'Not sure yet', text: 'Not sure yet' }
-        ],
-        match: (msg) => {
-            // Match when asking about help with technique/form
-            // Check for the question AND context indicating technique/form
-            return msg.includes('what would you like help with most') &&
-                   (msg.includes('technique') || msg.includes('form') || 
-                    msg.includes('lift') || msg.includes('feedback'));
-        },
-        priority: 22
-    },
-    {
-        id: 'staying-consistent-followup-strength',
-        label: 'What kind of support would help you most right now?',
-        options: [
-            { value: 'Regular accountability', text: 'Regular accountability' },
-            { value: 'Some guidance', text: 'Some guidance' },
-            { value: 'Not sure yet', text: 'Not sure yet' }
-        ],
-        match: (msg) => {
-            // Match when asking about support for staying consistent
-            // Exclude nutrition context (nutrition has its own accountability question)
-            const isNutritionContext = msg.includes('nutrition') && 
-                                      (msg.includes('struggle') || msg.includes('accountability'));
-            
-            return (msg.includes('what kind of support would help you most right now') ||
-                   msg.includes('what kind of support would help you stay on track') ||
-                   (msg.includes('what kind of support') && msg.includes('help you'))) &&
-                   !isNutritionContext;
-        },
-        priority: 22
-    },
-    {
-        id: 'strength-purpose',
-        label: 'Are you getting stronger for general health or to prepare for a competition?',
-        options: [
-            { value: 'General health', text: 'General health' },
-            { value: 'Prepare for a competition', text: 'Prepare for a competition' }
-        ],
-        match: (msg) => {
-            return msg.includes('general health or to prepare for a competition') ||
-                   msg.includes('general health or competition') ||
-                   msg.includes('for general health or to prepare') ||
-                   (msg.includes('general health') && msg.includes('competition')) ||
-                   (msg.includes('getting stronger') && (msg.includes('general health') || msg.includes('competition')));
-        },
-        priority: 85
-    },
-    {
-        id: 'does-this-suit-you',
-        label: 'Does this suit you?',
-        options: [
-            { value: 'Yes, this suits me', text: 'Yes, this suits me' },
-            { value: 'No, I\'d prefer something else', text: 'No, I\'d prefer something else' }
-        ],
-        match: (msg) => {
-            return msg.includes('does this suit you') ||
-                   (msg.includes('suit you') && msg.includes('?'));
-        },
-        priority: 92
-    },
-    {
-        id: 'beginner-coaching-choice',
-        label: 'Would you prefer in-person or online?',
-        options: [
-            { value: 'In-person club coaching', text: 'In-person club coaching' },
-            { value: 'Online coaching', text: 'Online coaching' }
-        ],
-        match: (msg) => {
-            // Match when asking beginners to choose between in-person and online
-            // after explaining both options
-            return (msg.includes('would you prefer in-person or online') ||
-                   (msg.includes('in-person') && msg.includes('online') && 
-                    msg.includes('prefer') && msg.includes('?'))) &&
-                   (msg.includes('beginner') || msg.includes('club coaching') || 
-                    msg.includes('technique') || msg.includes('confidence'));
-        },
-        priority: 88
-    },
-    {
-        id: 'one-to-one-addon-simple',
-        label: 'Would you like to add 1-to-1 coaching?',
-        options: [
-            { value: 'Yes, I\'d like to add on', text: 'Yes, I\'d like to add on' },
-            { value: 'No', text: 'No' }
-        ],
-        match: (msg) => {
-            // Match simpler 1-to-1 add-on questions (without mentioning specific coaching type)
-            return (msg.includes('add 1-to-1') || msg.includes('add on') || msg.includes('add-on')) &&
-                   (msg.includes('would you like') || msg.includes('interested')) &&
-                   msg.includes('?') &&
-                   !msg.includes('club coaching would suit') &&
-                   !msg.includes('online coaching would suit');
-        },
-        priority: 93
-    }
-];
+// Optimized regex patterns for exclusion checks (faster than multiple includes())
+const HANDOVER_REGEX = /name:\s*.+mobile:\s*.+goal:\s*.+plan:/i;
+const RECOMMENDATION_REGEX = /(i|we|i'?d|would)\s+recommend|recommend.*for you|pricing|per week|would be a perfect fit|perfect fit|next step|connect you|take the next step/i;
+const PERSONAL_INFO_REGEX = /(your name|what'?s your name|what is your name|may i have your name|can i get your name|phone number|contact (number|details|information)|email address|how can we reach you|best way to contact|get in touch)/i;
 
 // Patterns that indicate the bot is making a recommendation (hide chips)
+// Kept for backward compatibility, but RECOMMENDATION_REGEX is used instead
 const RECOMMENDATION_PATTERNS = [
     'i recommend', 'we recommend', 'i\'d recommend', 'would recommend',
     'pricing', 'per week', 'would be a perfect fit', 'perfect fit',
@@ -613,6 +34,7 @@ const RECOMMENDATION_PATTERNS = [
 ];
 
 // Patterns that indicate the bot is collecting personal info (hide chips)
+// Kept for backward compatibility, but PERSONAL_INFO_REGEX is used instead
 const PERSONAL_INFO_PATTERNS = [
     'your name', 'what is your name', 'what\'s your name', 'may i have your name',
     'can i get your name', 'phone number', 'contact number', 'contact details',
@@ -990,27 +412,40 @@ class ChatApp {
         const userText = userMessages.join(' ').toLowerCase();
         const fullUserText = userMessages.join(' ').toLowerCase();
         
-        // Extract experience level
-        if (fullUserText.includes('beginner')) {
-            experienceLevel = 'beginner';
-        } else if (fullUserText.includes('intermediate')) {
-            experienceLevel = 'intermediate';
-        } else if (fullUserText.includes('advanced') || fullUserText.includes('competitive')) {
-            experienceLevel = 'advanced';
+        // First, try to extract from handover confirmation in assistant messages (most accurate)
+        const handoverGoalPattern = /Goal:\s*(.+?)(?:\n|Plan:|$)/i;
+        for (const msg of assistantMessages) {
+            const match = msg.match(handoverGoalPattern);
+            if (match) {
+                goal = match[1].trim();
+                break;
+            }
         }
         
-        // Extract goal
-        if (userText.includes('compete') || userText.includes('competition')) {
-            goal = 'Competition prep';
-        } else if (userText.includes('stronger') || userText.includes('strength') || userText.includes('powerlifting')) {
-            goal = 'Build strength';
-        } else if (userText.includes('nutrition') || userText.includes('fat loss') || userText.includes('muscle gain')) {
-            goal = 'Nutrition Coaching';
-        }
-        
-        // Append experience level to goal if available
-        if (goal !== 'General Inquiry' && experienceLevel) {
-            goal = `${goal} (${experienceLevel})`;
+        // If not found in handover, extract from user messages
+        if (goal === 'General Inquiry') {
+            // Extract experience level
+            if (fullUserText.includes('beginner')) {
+                experienceLevel = 'beginner';
+            } else if (fullUserText.includes('intermediate')) {
+                experienceLevel = 'intermediate';
+            } else if (fullUserText.includes('advanced') || fullUserText.includes('competitive')) {
+                experienceLevel = 'advanced';
+            }
+            
+            // Extract goal
+            if (userText.includes('compete') || userText.includes('competition')) {
+                goal = 'Competition prep';
+            } else if (userText.includes('stronger') || userText.includes('strength') || userText.includes('powerlifting')) {
+                goal = 'Build strength';
+            } else if (userText.includes('nutrition') || userText.includes('fat loss') || userText.includes('muscle gain')) {
+                goal = 'Nutrition Coaching';
+            }
+            
+            // Append experience level to goal if available
+            if (goal !== 'General Inquiry' && experienceLevel) {
+                goal = `${goal} (${experienceLevel})`;
+            }
         }
         
         // Extract plan from user selections
@@ -1069,35 +504,76 @@ class ChatApp {
             }
         } else {
             // If no plan parts found, try to extract from assistant messages
-            const assistantText = assistantMessages.join(' ').toLowerCase();
-            if (assistantText.includes('online coaching')) {
-                plan = 'Online coaching';
-            } else if (assistantText.includes('club coaching')) {
-                plan = 'Club coaching';
-            } else if (assistantText.includes('nutrition coaching')) {
-                plan = 'Nutrition coaching';
+            // First check for handover confirmation format (most accurate)
+            const handoverPlanPattern = /Plan:\s*(.+?)(?:\n|$)/i;
+            for (const msg of assistantMessages) {
+                const match = msg.match(handoverPlanPattern);
+                if (match) {
+                    plan = match[1].trim();
+                    break;
+                }
+            }
+            
+            // Fallback to keyword matching if handover format not found
+            if (plan === 'Not specified') {
+                const assistantText = assistantMessages.join(' ').toLowerCase();
+                if (assistantText.includes('online coaching')) {
+                    plan = 'Online coaching';
+                } else if (assistantText.includes('club coaching')) {
+                    plan = 'Club coaching';
+                } else if (assistantText.includes('nutrition coaching')) {
+                    plan = 'Nutrition coaching';
+                }
             }
         }
         
         return { goal, plan };
     }
     
-    displayHandoverSummary(name, mobile, goal, plan) {
-        const summary = `Name: ${name}\nMobile: ${mobile}\nGoal: ${goal}\nPlan: ${plan}`;
-        // Hide chips before displaying handover summary
+    displayEscalationConfirmation() {
+        const confirmation = "We've received your details, and we will be in touch soon. Feel free to ask me if you have any other questions!";
+        // Hide chips before displaying confirmation
         this.hideDiscoveryChips();
-        this.addMessage('assistant', summary);
+        this.addMessage('assistant', confirmation);
         // Ensure chips stay hidden after adding the message
         setTimeout(() => {
             this.hideDiscoveryChips();
         }, 50);
     }
     
+    async extractConversationContext() {
+        // Extract recent conversation context for high priority escalations
+        let contextMessages = [];
+        
+        try {
+            const response = await fetch('/api/get_history');
+            const data = await response.json();
+            
+            if (data.success && data.messages) {
+                // Get last 10 messages for context (excluding system messages)
+                const recentMessages = data.messages
+                    .filter(msg => msg.role !== 'system')
+                    .slice(-10);
+                
+                contextMessages = recentMessages.map(msg => ({
+                    role: msg.role,
+                    content: msg.content
+                }));
+            }
+        } catch (error) {
+            console.error('Error fetching conversation history:', error);
+        }
+        
+        return contextMessages;
+    }
+    
     async submitEscalation() {
         const name = document.getElementById('escalationName').value.trim();
         const mobile = document.getElementById('escalationPhone').value.trim();
+        const email = document.getElementById('escalationEmail').value.trim();
+        const issue = document.getElementById('escalationIssue').value.trim();
         
-        if (!name || !mobile) {
+        if (!name || !mobile || !email || !issue) {
             alert('Please fill in all required fields.');
             return;
         }
@@ -1105,11 +581,14 @@ class ChatApp {
         // Extract goal and plan from conversation
         const { goal, plan } = await this.extractGoalAndPlan();
         
+        // Extract conversation context for high priority escalation
+        const conversationContext = await this.extractConversationContext();
+        
         // Close modal first
         this.closeEscalationModal();
         
-        // Display handover summary BEFORE submitting
-        this.displayHandoverSummary(name, mobile, goal, plan);
+        // Display confirmation message
+        this.displayEscalationConfirmation();
         
         // Wait a moment for the message to display, then submit escalation
         setTimeout(async () => {
@@ -1119,23 +598,47 @@ class ChatApp {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        conversation_id: this.conversationId, // Send conversation_id explicitly
                         contact_info: {
                             name: name,
                             phone: mobile,
+                            email: email,
                             goal: goal,
-                            plan: plan
+                            plan: plan,
+                            issue: issue,
+                            conversation_context: conversationContext
                         },
-                        reason: 'Customer requested human assistance'
+                        reason: 'Customer requested immediate human assistance'
                     })
                 });
+                
+                if (!response.ok) {
+                    // Try to get error message from response
+                    let errorMessage = 'Failed to submit your request. Please try again.';
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.error || errorMessage;
+                        console.error('Failed to submit escalation:', errorData);
+                    } catch (e) {
+                        console.error('Failed to parse error response:', e);
+                        console.error('Response status:', response.status, response.statusText);
+                    }
+                    alert(errorMessage);
+                    return;
+                }
                 
                 const data = await response.json();
                 
                 if (!data.success) {
                     console.error('Failed to submit escalation:', data.error);
+                    alert(data.error || 'Failed to submit your request. Please try again.');
+                } else {
+                    // Success - the confirmation message is already displayed
+                    console.log('Escalation submitted successfully:', data);
                 }
             } catch (error) {
                 console.error('Error submitting escalation:', error);
+                alert('An error occurred. Please try again. Error: ' + error.message);
             }
         }, 500);
     }
@@ -1183,37 +686,30 @@ class ChatApp {
     checkForDiscoveryQuestion(botMessage) {
         const message = botMessage.toLowerCase();
         
+        // Fast exclusion checks using regex (optimization #2) - return early if we should hide chips
+        
         // Check if this is a handover summary - hide chips
         // Handover summaries have format: Name: ... Mobile: ... Goal: ... Plan: ...
-        const isHandoverSummary = (message.includes('name:') && message.includes('mobile:') && 
-                                   message.includes('goal:') && message.includes('plan:'));
-        
-        if (isHandoverSummary) {
+        if (HANDOVER_REGEX.test(botMessage)) {
             this.hideDiscoveryChips();
             return;
         }
         
-        // Check if bot is making a recommendation - hide chips
-        const isRecommending = RECOMMENDATION_PATTERNS.some(pattern => message.includes(pattern)) ||
-                               (message.includes('recommend') && message.includes('for you'));
-
-        if (isRecommending) {
+        // Check if bot is making a recommendation - hide chips (using regex for speed)
+        if (RECOMMENDATION_REGEX.test(botMessage)) {
             this.hideDiscoveryChips();
             return;
         }
 
-        // Check if bot is collecting personal information - hide chips
-        const isCollectingInfo = PERSONAL_INFO_PATTERNS.some(pattern => message.includes(pattern));
-
-        if (isCollectingInfo) {
+        // Check if bot is collecting personal information - hide chips (using regex for speed)
+        if (PERSONAL_INFO_REGEX.test(botMessage)) {
             this.hideDiscoveryChips();
             return;
         }
 
-        // Find matching discovery pattern (sorted by priority)
-        const sortedPatterns = [...DISCOVERY_PATTERNS].sort((a, b) => a.priority - b.priority);
-        
-        for (const pattern of sortedPatterns) {
+        // Find matching discovery pattern using pre-sorted array (optimization #1)
+        // Patterns are already sorted by priority, so first match is highest priority
+        for (const pattern of SORTED_DISCOVERY_PATTERNS) {
             if (pattern.match(message)) {
                 this.showDiscoveryChips(pattern.label, pattern.options);
                 return;

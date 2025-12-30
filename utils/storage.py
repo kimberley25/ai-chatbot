@@ -43,11 +43,22 @@ def _load_json_file(file_path):
 def _save_json_file(file_path, data):
     """Save data to JSON file"""
     try:
+        # Ensure directory exists
+        directory = os.path.dirname(file_path)
+        _ensure_dir_exists(directory)
+        
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
         return True
     except IOError as e:
         print(f"Error saving file {file_path}: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+    except Exception as e:
+        print(f"Unexpected error saving file {file_path}: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 
@@ -184,7 +195,7 @@ def delete_conversation(conversation_id):
 # ESCALATION FUNCTIONS
 # ============================================================================
 
-def save_escalation(conversation_id, reason, contact_info):
+def save_escalation(conversation_id, reason, contact_info, priority='low'):
     """
     Save escalation request.
     
@@ -192,23 +203,43 @@ def save_escalation(conversation_id, reason, contact_info):
         conversation_id: Unique identifier for the conversation
         reason: Reason for escalation
         contact_info: Dictionary containing user contact information
+            Expected keys:
+                - name, mobile (required)
+                - email (optional, required for email notifications)
+                - goal, plan (optional, for low priority escalations)
+                - issue (optional, for high priority escalations - user's concern/question)
+                - conversation_context (optional, for high priority escalations)
+        priority: Priority level - 'low' for normal handover, 'high' for urgent requests
     
     Returns:
         Dictionary containing escalation data, or None on error
     """
-    escalation_data = {
-        'conversation_id': conversation_id,
-        'timestamp': datetime.now().isoformat(),
-        'reason': reason,
-        'contact_info': contact_info,
-        'status': 'pending'
-    }
-    
-    file_path = _get_file_path(ESCALATIONS_DIR, conversation_id, '_escalation')
-    
-    if _save_json_file(file_path, escalation_data):
-        return escalation_data
-    return None
+    try:
+        # Ensure escalations directory exists
+        _ensure_dir_exists(ESCALATIONS_DIR)
+        
+        escalation_data = {
+            'conversation_id': conversation_id,
+            'timestamp': datetime.now().isoformat(),
+            'reason': reason,
+            'contact_info': contact_info,
+            'priority': priority,  # 'low' or 'high'
+            'status': 'pending'
+        }
+        
+        file_path = _get_file_path(ESCALATIONS_DIR, conversation_id, '_escalation')
+        
+        if _save_json_file(file_path, escalation_data):
+            print(f"Escalation saved successfully: {file_path}")
+            return escalation_data
+        else:
+            print(f"Failed to save escalation to {file_path}")
+            return None
+    except Exception as e:
+        print(f"Error in save_escalation: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 def load_escalation(conversation_id):
