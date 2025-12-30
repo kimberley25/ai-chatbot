@@ -62,12 +62,18 @@ A Flask-based AI chatbot for Strength Club that helps users discover coaching se
 chatbot/
 ├── app.py              # Main Flask application
 ├── config.py           # Configuration
-├── system_prompt.txt   # Chatbot instructions
+├── system_prompt.txt   # Chatbot instructions (single file, optional)
+├── prompts/            # Modular prompt files (recommended)
+│   ├── 01_foundation.txt
+│   ├── 02_discovery_recommendation.txt
+│   └── 03_constraints_escalation_reference.txt
 ├── requirements.txt    # Dependencies
 ├── data/              # JSON storage (conversations, escalations, users)
 ├── static/            # CSS and JavaScript
 └── utils/             # Chatbot, session, and storage utilities
 ```
+
+**Note:** The system prompt can be organized as multiple files in `prompts/` (recommended for easier maintenance) or as a single `system_prompt.txt` file. The code automatically detects and uses the `prompts/` directory if it exists.
 
 ## Usage
 
@@ -80,7 +86,7 @@ chatbot/
 
 - **Missing API key**: Ensure `.env` file contains `OPENAI_API_KEY`
 - **Port in use**: Change `FLASK_RUN_PORT` in `.env`
-- **System prompt not found**: Verify `system_prompt.txt` exists in project root
+- **System prompt not found**: Verify either `prompts/` directory exists with numbered .txt files, or `system_prompt.txt` exists in project root
 
 ## Security
 
