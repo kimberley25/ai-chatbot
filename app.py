@@ -1,7 +1,10 @@
 from flask import Flask, render_template, request, jsonify, session, g
 import uuid
 import re
+import logging
 from datetime import timedelta
+
+logger = logging.getLogger(__name__)
 
 from config import (
     FLASK_SECRET_KEY,
@@ -37,6 +40,8 @@ from config import (
     MAIL_USE_SSL,
     MAIL_USERNAME,
     MAIL_PASSWORD,
+    MAIL_FROM_EMAIL,
+    MAIL_FROM_NAME,
 )
 
 app = Flask(__name__)
@@ -55,6 +60,8 @@ app.config["MAIL_USE_TLS"] = MAIL_USE_TLS
 app.config["MAIL_USE_SSL"] = MAIL_USE_SSL
 app.config["MAIL_USERNAME"] = MAIL_USERNAME
 app.config["MAIL_PASSWORD"] = MAIL_PASSWORD
+# Set default sender (required by Flask-Mail)
+app.config["MAIL_DEFAULT_SENDER"] = (MAIL_FROM_NAME or "Strength Club", MAIL_FROM_EMAIL)
 
 # Initialize Flask-Mail
 init_mail(app)
@@ -202,7 +209,7 @@ def send_message():
         if escalation_detected:
             # User requested human assistance - provide simple acknowledgment
             # The modal will handle collecting contact info
-            bot_reply = "I'd be happy to connect you with one of our coaches. Please fill in the form below so we can get in touch with you."
+            bot_reply = "I'd be happy to connect you with our team. Please fill in the form so we can get in touch with you."
             chat_sessions[conversation_id]["escalated"] = True
             # Don't create escalation record here - wait for user to submit escalation form
             # The frontend will show the escalation modal to collect contact info
@@ -249,11 +256,18 @@ def send_message():
                 
                 # Send email notification if email is available
                 if escalation_data and email:
-                    send_escalation_confirmation_email(
-                        email,
-                        handover_info.get('name', 'Customer'),
-                        priority='low'
-                    )
+                    try:
+                        email_sent = send_escalation_confirmation_email(
+                            email,
+                            handover_info.get('name', 'Customer'),
+                            priority='low'
+                        )
+                        if not email_sent:
+                            logger.warning(f"Email sending returned False for {email} (low priority). Check email configuration and logs.")
+                    except Exception as e:
+                        print(f"Error sending escalation email (low priority): {e}")
+                        logger.error(f"Failed to send escalation email to {email}: {e}", exc_info=True)
+                        # Don't fail the escalation if email fails
                 
                 # Mark as escalated (but low priority)
                 chat_sessions[conversation_id]["escalated"] = True
@@ -286,82 +300,125 @@ def send_message():
 @app.route("/api/escalate", methods=["POST"])
 def escalate_to_human():
     """Escalate conversation to human support (high priority)"""
-    data = request.json
-    conversation_id = session_manager.get_conversation_id()
-    reason = data.get("reason", "Customer requested immediate human assistance")
-    contact_info = data.get("contact_info", {})
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"success": False, "error": "Invalid request data"}), 400
+        
+        # Try to get conversation_id from request first, then fall back to session
+        conversation_id = data.get("conversation_id") or session_manager.get_conversation_id()
+        reason = data.get("reason", "Customer requested immediate human assistance")
+        contact_info = data.get("contact_info", {})
+        
+        # Normalize field names: accept both 'phone' and 'mobile'
+        if 'phone' in contact_info and 'mobile' not in contact_info:
+            contact_info['mobile'] = contact_info['phone']
 
-    if not conversation_id:
-        return jsonify({"success": False, "error": "No active conversation"}), 400
+        if not conversation_id:
+            logger.warning("No conversation_id found in request or session")
+            return jsonify({"success": False, "error": "No active conversation. Please start a new chat."}), 400
+        
+        # Update session with conversation_id if it came from request
+        if data.get("conversation_id") and not session_manager.get_conversation_id():
+            session_manager.set_conversation(conversation_id)
 
-    # Get conversation messages to extract goal/plan if not provided
-    if conversation_id in chat_sessions:
-        messages = chat_sessions[conversation_id]["messages"]
-    else:
-        conv_data = load_conversation(conversation_id)
-        messages = conv_data.get("messages", []) if conv_data else []
-    
-    # Extract goal and plan from conversation if not already in contact_info
-    if 'goal' not in contact_info or 'plan' not in contact_info:
-        # Look for handover confirmation in assistant messages
-        for msg in reversed(messages):
-            if msg.get("role") == "assistant":
-                bot_reply = msg.get("content", "")
-                if is_handover_confirmation(bot_reply):
-                    handover_info = extract_handover_info(bot_reply)
-                    if handover_info:
-                        if 'goal' not in contact_info:
-                            contact_info['goal'] = handover_info.get('goal', '')
-                        if 'plan' not in contact_info:
-                            contact_info['plan'] = handover_info.get('plan', '')
-                        break
-    
-    # Extract issue/context if provided in contact_info
-    issue = contact_info.get('issue', '')
-    conversation_context = contact_info.get('conversation_context', [])
-    
-    # Build context summary from conversation if issue is empty but context is available
-    if not issue and conversation_context:
-        # Extract last few user messages as context
-        user_messages = [msg.get('content', '') for msg in conversation_context if msg.get('role') == 'user']
-        if user_messages:
-            issue = ' '.join(user_messages[-3:])  # Last 3 user messages as context
-    
-    # Store issue/context in contact_info for reference
-    if issue:
-        contact_info['issue'] = issue
+        # Get conversation messages to extract goal/plan if not provided
+        if conversation_id in chat_sessions:
+            messages = chat_sessions[conversation_id]["messages"]
+        else:
+            conv_data = load_conversation(conversation_id)
+            messages = conv_data.get("messages", []) if conv_data else []
+        
+        # Extract goal and plan from conversation if not already in contact_info
+        if 'goal' not in contact_info or 'plan' not in contact_info:
+            # Look for handover confirmation in assistant messages
+            for msg in reversed(messages):
+                if msg.get("role") == "assistant":
+                    bot_reply = msg.get("content", "")
+                    if is_handover_confirmation(bot_reply):
+                        handover_info = extract_handover_info(bot_reply)
+                        if handover_info:
+                            if 'goal' not in contact_info:
+                                contact_info['goal'] = handover_info.get('goal', '')
+                            if 'plan' not in contact_info:
+                                contact_info['plan'] = handover_info.get('plan', '')
+                            break
+        
+        # Extract issue/context if provided in contact_info
+        issue = contact_info.get('issue', '')
+        conversation_context = contact_info.get('conversation_context', [])
+        
+        # Build context summary from conversation if issue is empty but context is available
+        if not issue and conversation_context:
+            # Extract last few user messages as context
+            user_messages = [msg.get('content', '') for msg in conversation_context if msg.get('role') == 'user']
+            if user_messages:
+                issue = ' '.join(user_messages[-3:])  # Last 3 user messages as context
+        
+        # Store issue/context in contact_info for reference
+        if issue:
+            contact_info['issue'] = issue
 
-    # Mark session as escalated
-    if conversation_id in chat_sessions:
-        chat_sessions[conversation_id]["escalated"] = True
-
-        # Save high-priority escalation
-        escalation_data = save_escalation(conversation_id, reason, contact_info, priority='high')
+        # Save high-priority escalation (works regardless of whether session is in memory)
+        try:
+            escalation_data = save_escalation(conversation_id, reason, contact_info, priority='high')
+        except Exception as save_error:
+            logger.error(f"Exception while saving escalation for conversation {conversation_id}: {save_error}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "error": f"Failed to save escalation: {str(save_error)}"
+            }), 500
+        
+        if not escalation_data:
+            logger.error(f"Failed to save escalation for conversation {conversation_id} - save_escalation returned None")
+            return jsonify({
+                "success": False,
+                "error": "Failed to save escalation. Please check server logs and try again."
+            }), 500
+        
+        # Mark session as escalated if it's in memory
+        if conversation_id in chat_sessions:
+            chat_sessions[conversation_id]["escalated"] = True
+            # Save updated conversation
+            save_conversation(
+                conversation_id, chat_sessions[conversation_id]["messages"], escalated=True
+            )
+        else:
+            # Load conversation from storage and update escalated status
+            conv_data = load_conversation(conversation_id)
+            if conv_data:
+                conv_data["escalated"] = True
+                save_conversation(
+                    conversation_id, conv_data.get("messages", []), escalated=True
+                )
         
         # Send email notification if email is provided
         email = contact_info.get('email', '')
-        if escalation_data and email:
+        if email:
             try:
-                send_escalation_confirmation_email(
+                email_sent = send_escalation_confirmation_email(
                     email,
                     contact_info.get('name', 'Customer'),
                     priority='high'
                 )
+                if not email_sent:
+                    logger.warning(f"Email sending returned False for {email}. Check email configuration and logs.")
             except Exception as e:
-                print(f"Error sending escalation email: {e}")
+                logger.error(f"Failed to send escalation email to {email}: {e}", exc_info=True)
                 # Don't fail the escalation if email fails
 
-        # Save updated conversation
-        save_conversation(
-            conversation_id, chat_sessions[conversation_id]["messages"], escalated=True
+        return jsonify(
+            {
+                "success": True,
+                "message": "Your conversation has been escalated to our support team. A representative will contact you shortly.",
+            }
         )
-
-    return jsonify(
-        {
-            "success": True,
-            "message": "Your conversation has been escalated to our support team. A representative will contact you shortly.",
-        }
-    )
+    except Exception as e:
+        logger.error(f"Error processing escalation: {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": "An error occurred while processing your request. Please try again."
+        }), 500
 
 
 @app.route("/api/get_history", methods=["GET"])

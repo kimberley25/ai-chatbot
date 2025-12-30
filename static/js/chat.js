@@ -598,6 +598,7 @@ class ChatApp {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        conversation_id: this.conversationId, // Send conversation_id explicitly
                         contact_info: {
                             name: name,
                             phone: mobile,
@@ -611,15 +612,33 @@ class ChatApp {
                     })
                 });
                 
+                if (!response.ok) {
+                    // Try to get error message from response
+                    let errorMessage = 'Failed to submit your request. Please try again.';
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.error || errorMessage;
+                        console.error('Failed to submit escalation:', errorData);
+                    } catch (e) {
+                        console.error('Failed to parse error response:', e);
+                        console.error('Response status:', response.status, response.statusText);
+                    }
+                    alert(errorMessage);
+                    return;
+                }
+                
                 const data = await response.json();
                 
                 if (!data.success) {
                     console.error('Failed to submit escalation:', data.error);
-                    alert('Failed to submit your request. Please try again.');
+                    alert(data.error || 'Failed to submit your request. Please try again.');
+                } else {
+                    // Success - the confirmation message is already displayed
+                    console.log('Escalation submitted successfully:', data);
                 }
             } catch (error) {
                 console.error('Error submitting escalation:', error);
-                alert('An error occurred. Please try again.');
+                alert('An error occurred. Please try again. Error: ' + error.message);
             }
         }, 500);
     }
