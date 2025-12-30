@@ -39,30 +39,39 @@ def send_escalation_confirmation_email(
         return False
 
     try:
-        from config import MAIL_FROM_EMAIL, MAIL_FROM_NAME, MAIL_SERVER, MAIL_PORT, MAIL_USERNAME, MAIL_PASSWORD
+        from config import (
+            MAIL_FROM_EMAIL,
+            MAIL_FROM_NAME,
+            MAIL_SERVER,
+            MAIL_PORT,
+            MAIL_USERNAME,
+            MAIL_PASSWORD,
+        )
 
         # Validate email configuration
         if not MAIL_FROM_EMAIL:
             logger.error("MAIL_FROM_EMAIL is not configured. Cannot send email.")
             return False
-        
+
         if not MAIL_SERVER:
             logger.error("MAIL_SERVER is not configured. Cannot send email.")
             return False
-        
+
         if not MAIL_USERNAME or not MAIL_PASSWORD:
-            logger.warning(f"MAIL_USERNAME or MAIL_PASSWORD not configured. Email may fail if authentication is required.")
+            logger.warning(
+                f"MAIL_USERNAME or MAIL_PASSWORD not configured. Email may fail if authentication is required."
+            )
 
         if priority == "high":
-            subject = "Strength Club – We’ve Received Your Request"
+            subject = "Strength Club – We’ve Received Your Enquiry"
             body = f"""
 Dear {recipient_name},
 
-Thank you for reaching out to Strength Club. We’ve received your request, and our team will be in touch shortly to help address your needs.
+Thank you for reaching out to Strength Club and for taking the time to share your details with us. We’ve received your enquiry, and one of our coaches will be in touch shortly to arrange your follow-up consult and discuss how we can best support your goals.
 
-If you have any questions in the meantime, feel free to reply to this email.
+If you have any questions in the meantime, feel free to reply to this email — we’re happy to help.
 
-Best regards,  
+Yours in strength,  
 Strength Club
 hello@strengthclub.com.au
             """
@@ -75,7 +84,7 @@ Thank you for your interest in Strength Club. We’ve received your details, and
 
 If you have any questions in the meantime, feel free to reply to this email.
 
-Best regards,  
+Yours in strength,  
 Strength Club
 hello@strengthclub.com.au
             """
@@ -99,10 +108,17 @@ hello@strengthclub.com.au
         except Exception as send_error:
             logger.error(
                 f"Flask-Mail send() failed for {recipient_email}: {send_error}",
-                exc_info=True
+                exc_info=True,
             )
             # Log SMTP configuration for debugging
-            from config import MAIL_SERVER, MAIL_PORT, MAIL_USERNAME, MAIL_USE_TLS, MAIL_USE_SSL
+            from config import (
+                MAIL_SERVER,
+                MAIL_PORT,
+                MAIL_USERNAME,
+                MAIL_USE_TLS,
+                MAIL_USE_SSL,
+            )
+
             logger.error(
                 f"SMTP Config - Server: {MAIL_SERVER}, Port: {MAIL_PORT}, "
                 f"TLS: {MAIL_USE_TLS}, SSL: {MAIL_USE_SSL}, "
@@ -118,10 +134,11 @@ hello@strengthclub.com.au
     except Exception as e:
         logger.error(
             f"Failed to send escalation confirmation email to {recipient_email}: {e}",
-            exc_info=True
+            exc_info=True,
         )
         # Log additional details for debugging
         from config import MAIL_SERVER, MAIL_PORT, MAIL_USERNAME
+
         logger.debug(
             f"Email config - Server: {MAIL_SERVER}, Port: {MAIL_PORT}, "
             f"Username: {MAIL_USERNAME}, From: {MAIL_FROM_EMAIL}"

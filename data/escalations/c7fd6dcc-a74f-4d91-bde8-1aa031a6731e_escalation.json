@@ -1,0 +1,13 @@
+{
+  "conversation_id": "c7fd6dcc-a74f-4d91-bde8-1aa031a6731e",
+  "timestamp": "2025-12-30T20:35:29.984154",
+  "reason": "Handover confirmation - customer details collected",
+  "contact_info": {
+    "name": "Kim",
+    "mobile": "123",
+    "goal": "General health",
+    "plan": "Weekly Online Coaching"
+  },
+  "priority": "low",
+  "status": "pending"
+}
