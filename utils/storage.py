@@ -1,19 +1,21 @@
 """
 Storage layer for chatbot application.
-Handles JSON-based file storage for conversations, escalations, and users.
+Handles JSON-based file storage for conversations and escalations.
 """
 
 import os
 import json
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 # Directory constants
 DATA_DIR = 'data'
 CONVERSATIONS_DIR = os.path.join(DATA_DIR, 'conversations')
 ESCALATIONS_DIR = os.path.join(DATA_DIR, 'escalations')
-USERS_DIR = os.path.join(DATA_DIR, 'users')
 
 
 def _ensure_dir_exists(directory):
@@ -35,8 +37,14 @@ def _load_json_file(file_path):
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             return json.load(f)
-    except (json.JSONDecodeError, IOError) as e:
-        print(f"Error loading file {file_path}: {e}")
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decode error loading file {file_path}: {e}")
+        return None
+    except IOError as e:
+        logger.error(f"IO error loading file {file_path}: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error loading file {file_path}: {e}", exc_info=True)
         return None
 
 
@@ -50,22 +58,28 @@ def _save_json_file(file_path, data):
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
         return True
+    except OSError as e:
+        # Check for specific error types
+        if e.errno == 28:  # No space left on device
+            logger.error(f"Storage full: Cannot save file {file_path}")
+            raise
+        elif e.errno == 13:  # Permission denied
+            logger.error(f"Permission denied: Cannot save file {file_path}")
+            raise
+        else:
+            logger.error(f"OS error saving file {file_path}: {e}")
+            raise
     except IOError as e:
-        print(f"Error saving file {file_path}: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+        logger.error(f"IO error saving file {file_path}: {e}")
+        raise
     except Exception as e:
-        print(f"Unexpected error saving file {file_path}: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+        logger.error(f"Unexpected error saving file {file_path}: {e}", exc_info=True)
+        raise
 
 
 # Initialize directories on import
 _ensure_dir_exists(CONVERSATIONS_DIR)
 _ensure_dir_exists(ESCALATIONS_DIR)
-_ensure_dir_exists(USERS_DIR)
 
 
 # ============================================================================
@@ -84,6 +98,9 @@ def save_conversation(conversation_id, messages, escalated=False, title=None):
     
     Returns:
         Dictionary containing conversation data, or None on error
+    
+    Raises:
+        OSError: If storage operation fails (disk full, permissions, etc.)
     """
     file_path = _get_file_path(CONVERSATIONS_DIR, conversation_id)
     
@@ -117,9 +134,13 @@ def save_conversation(conversation_id, messages, escalated=False, title=None):
         'escalated': escalated
     }
     
-    if _save_json_file(file_path, conversation_data):
-        return conversation_data
-    return None
+    try:
+        if _save_json_file(file_path, conversation_data):
+            return conversation_data
+        return None
+    except OSError as e:
+        logger.error(f"Storage error saving conversation {conversation_id}: {e}")
+        raise
 
 
 def load_conversation(conversation_id):
@@ -178,6 +199,9 @@ def delete_conversation(conversation_id):
     
     Returns:
         True if deleted successfully, False otherwise
+    
+    Raises:
+        OSError: If deletion fails due to permissions or other OS errors
     """
     file_path = _get_file_path(CONVERSATIONS_DIR, conversation_id)
     
@@ -187,7 +211,9 @@ def delete_conversation(conversation_id):
             return True
         return False
     except OSError as e:
-        print(f"Error deleting conversation {conversation_id}: {e}")
+        logger.error(f"Error deleting conversation {conversation_id}: {e}")
+        if e.errno == 13:  # Permission denied
+            raise
         return False
 
 
@@ -279,101 +305,6 @@ def list_escalations():
     # Sort by timestamp (most recent first)
     escalations.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
     return escalations
-
-
-# ============================================================================
-# USER FUNCTIONS
-# ============================================================================
-
-def save_user(user_id, user_data):
-    """
-    Save user profile.
-    
-    Args:
-        user_id: Unique identifier for the user
-        user_data: Dictionary containing user information (email, name, etc.)
-    
-    Returns:
-        Dictionary containing user data, or None on error
-    """
-    file_path = _get_file_path(USERS_DIR, user_id)
-    
-    # Load existing user to preserve created_at
-    existing_data = _load_json_file(file_path)
-    
-    user_profile = {
-        'user_id': user_id,
-        'created_at': existing_data.get('created_at', datetime.now().isoformat()) if existing_data else datetime.now().isoformat(),
-        'updated_at': datetime.now().isoformat(),
-        **user_data
-    }
-    
-    if _save_json_file(file_path, user_profile):
-        return user_profile
-    return None
-
-
-def load_user(user_id):
-    """
-    Load user profile.
-    
-    Args:
-        user_id: Unique identifier for the user
-    
-    Returns:
-        Dictionary containing user data, or None if not found
-    """
-    file_path = _get_file_path(USERS_DIR, user_id)
-    return _load_json_file(file_path)
-
-
-def update_user(user_id, updates):
-    """
-    Update user profile with new data.
-    
-    Args:
-        user_id: Unique identifier for the user
-        updates: Dictionary containing fields to update
-    
-    Returns:
-        Updated user dictionary, or None if user not found or error occurred
-    """
-    existing_data = load_user(user_id)
-    
-    if not existing_data:
-        return None
-    
-    # Merge updates
-    existing_data.update(updates)
-    existing_data['updated_at'] = datetime.now().isoformat()
-    
-    file_path = _get_file_path(USERS_DIR, user_id)
-    
-    if _save_json_file(file_path, existing_data):
-        return existing_data
-    return None
-
-
-def delete_user(user_id):
-    """
-    Delete user profile.
-    
-    Args:
-        user_id: Unique identifier for the user
-    
-    Returns:
-        True if deleted successfully, False otherwise
-    """
-    file_path = _get_file_path(USERS_DIR, user_id)
-    
-    try:
-        if os.path.exists(file_path):
-            os.remove(file_path)
-            return True
-        return False
-    except OSError as e:
-        print(f"Error deleting user {user_id}: {e}")
-        return False
 
 
 # ============================================================================

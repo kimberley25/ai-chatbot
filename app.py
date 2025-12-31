@@ -81,14 +81,14 @@ chat_sessions = {}
 
 @app.before_request
 def before_request():
-    """Initialize session before each request and validate JSON requests"""
-    # Validate JSON for POST requests
     if request.method == 'POST' and request.is_json:
-        try:
-            request.get_json(force=True)
-        except Exception as e:
-            logger.warning(f"Invalid JSON in request: {e}")
-            return jsonify({"success": False, "error": "Invalid JSON format"}), 400
+        # Check if request has content before parsing
+        if request.content_length and request.content_length > 0:
+            try:
+                request.get_json(force=True)
+            except Exception as e:
+                logger.warning(f"Invalid JSON in request: {e}")
+                return jsonify({"success": False, "error": "Invalid JSON format"}), 400
     
     # Initialize session if needed
     session_manager.init_session()
@@ -166,14 +166,32 @@ def start_session():
             "escalated": False,
         }
 
-        # Save initial conversation
+            # Save initial conversation
         try:
             save_conversation(
                 conversation_id, chat_sessions[conversation_id]["messages"], False
             )
+        except OSError as e:
+            if e.errno == 28:  # No space left on device
+                logger.error(f"Storage full: Cannot save conversation {conversation_id}")
+                return jsonify({
+                    "success": False,
+                    "error": "Storage is full. Please contact support."
+                }), 507  # 507 Insufficient Storage
+            elif e.errno == 13:  # Permission denied
+                logger.error(f"Permission denied: Cannot save conversation {conversation_id}")
+                return jsonify({
+                    "success": False,
+                    "error": "Permission denied. Please check file permissions."
+                }), 500
+            else:
+                logger.error(f"Storage error saving conversation {conversation_id}: {e}", exc_info=True)
+                return jsonify({
+                    "success": False,
+                    "error": "Failed to save conversation. Please try again."
+                }), 500
         except Exception as e:
             logger.error(f"Error saving initial conversation: {e}", exc_info=True)
-            # Continue anyway - conversation is in memory
             return jsonify({
                 "success": False,
                 "error": "Failed to save conversation. Please try again."
@@ -341,6 +359,15 @@ def send_message():
                     chat_sessions[conversation_id]["messages"],
                     chat_sessions[conversation_id]["escalated"],
                 )
+            except OSError as save_error:
+                if save_error.errno == 28:  # No space left on device
+                    logger.error(f"Storage full: Cannot save conversation {conversation_id}")
+                    # Continue - conversation is still in memory, but log the issue
+                elif save_error.errno == 13:  # Permission denied
+                    logger.error(f"Permission denied: Cannot save conversation {conversation_id}")
+                    # Continue - conversation is still in memory
+                else:
+                    logger.error(f"Storage error saving conversation {conversation_id}: {save_error}", exc_info=True)
             except Exception as save_error:
                 logger.error(f"Error saving conversation {conversation_id}: {save_error}", exc_info=True)
                 # Continue - conversation is still in memory
@@ -409,9 +436,10 @@ def escalate_to_human():
         if not contact_info:
             return jsonify({"success": False, "error": "Contact information is required"}), 400
         
-        name = contact_info.get('name', '').strip() if contact_info.get('name') else ''
-        mobile = contact_info.get('mobile', '').strip() if contact_info.get('mobile') else ''
-        email = contact_info.get('email', '').strip() if contact_info.get('email') else ''
+        # Sanitize and extract contact info
+        name = sanitize_input(contact_info.get('name', ''), max_length=200)
+        mobile = sanitize_input(contact_info.get('mobile', ''), max_length=50)
+        email = sanitize_input(contact_info.get('email', ''), max_length=255)
         
         # Normalize field names: accept both 'phone' and 'mobile'
         if 'phone' in contact_info and not mobile:
@@ -429,8 +457,7 @@ def escalate_to_human():
             return jsonify({"success": False, "error": "Email address is required"}), 400
         
         # Validate email format
-        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-        if not re.match(email_pattern, email):
+        if not validate_email(email):
             return jsonify({"success": False, "error": "Invalid email format"}), 400
         
         # Validate conversation_id
@@ -438,7 +465,7 @@ def escalate_to_human():
             logger.warning("No conversation_id found in request or session")
             return jsonify({"success": False, "error": "No active conversation. Please start a new chat."}), 400
         
-        if not isinstance(conversation_id, str) or len(conversation_id) != 36:
+        if not validate_conversation_id(conversation_id):
             return jsonify({"success": False, "error": "Invalid conversation ID format"}), 400
         
         # Update session with conversation_id if it came from request
@@ -602,14 +629,9 @@ def get_history():
 
 @app.route("/api/past-chats", methods=["GET"])
 def get_past_chats():
-    """List previous conversations for logged-in users"""
+    """List previous conversations"""
     try:
         # Get all conversations
-        # TODO: When login is implemented, filter by user_id:
-        #   1. Add user_id to session when user logs in
-        #   2. Add user_id field to conversation data when saving
-        #   3. Create get_user_conversations(user_id) function in utils/storage.py
-        #   4. Filter conversations: user_id = session.get('user_id'); if user_id: conversations = get_user_conversations(user_id)
         conversations = get_all_conversations()
         
         return jsonify({"success": True, "conversations": conversations})
@@ -639,9 +661,27 @@ def new_chat():
             save_conversation(
                 conversation_id, chat_sessions[conversation_id]["messages"], False
             )
+        except OSError as e:
+            if e.errno == 28:  # No space left on device
+                logger.error(f"Storage full: Cannot save conversation {conversation_id}")
+                return jsonify({
+                    "success": False,
+                    "error": "Storage is full. Please contact support."
+                }), 507  # 507 Insufficient Storage
+            elif e.errno == 13:  # Permission denied
+                logger.error(f"Permission denied: Cannot save conversation {conversation_id}")
+                return jsonify({
+                    "success": False,
+                    "error": "Permission denied. Please check file permissions."
+                }), 500
+            else:
+                logger.error(f"Storage error saving conversation {conversation_id}: {e}", exc_info=True)
+                return jsonify({
+                    "success": False,
+                    "error": "Failed to save conversation. Please try again."
+                }), 500
         except Exception as e:
             logger.error(f"Error saving new conversation: {e}", exc_info=True)
-            # Continue anyway - conversation is in memory
             return jsonify({
                 "success": False,
                 "error": "Failed to save conversation. Please try again."
@@ -670,12 +710,19 @@ def delete_conversation():
             return jsonify({"success": False, "error": "No conversation ID provided"}), 400
         
         # Validate conversation_id format
-        if not isinstance(conversation_id, str) or len(conversation_id) != 36:
+        if not validate_conversation_id(conversation_id):
             return jsonify({"success": False, "error": "Invalid conversation ID format"}), 400
 
         # Delete from storage
         try:
             deleted = storage_delete_conversation(conversation_id)
+        except OSError as e:
+            if e.errno == 13:  # Permission denied
+                logger.error(f"Permission denied: Cannot delete conversation {conversation_id}")
+                return jsonify({"success": False, "error": "Permission denied. Cannot delete conversation."}), 500
+            else:
+                logger.error(f"OS error deleting conversation {conversation_id}: {e}", exc_info=True)
+                return jsonify({"success": False, "error": "Failed to delete conversation"}), 500
         except Exception as e:
             logger.error(f"Error deleting conversation {conversation_id}: {e}", exc_info=True)
             return jsonify({"success": False, "error": "Failed to delete conversation"}), 500

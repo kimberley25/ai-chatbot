@@ -8,5 +8,3 @@ data/conversations/*
 !data/conversations/.gitkeep
 data/escalations/*
 !data/escalations/.gitkeep
-data/users/*
-!data/users/.gitkeep
