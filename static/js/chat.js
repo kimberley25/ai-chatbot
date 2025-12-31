@@ -14,7 +14,7 @@ const ICONS = {
     </svg>`
 };
 
-const WELCOME_MESSAGE = "Welcome to Strength Club! I'm here if you have any questions about training, nutrition, or coaching. What can I help you with today?";
+const WELCOME_MESSAGE = "Hey! 👋 I’m here to help you figure out the right coaching option at Strength Club. \n\nNo stress if you’re not sure yet — you can tap an option below, or I can ask a couple of quick questions and guide you from there. ";
 
 // Discovery patterns are loaded from discovery-patterns.js
 // DISCOVERY_PATTERNS, SORTED_DISCOVERY_PATTERNS, PATTERN_GROUPS, and PATTERN_BY_ID

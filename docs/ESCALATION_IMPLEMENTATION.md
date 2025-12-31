@@ -232,12 +232,7 @@ MAIL_SUBJECT_HIGH=Your Request Has Been Received - Strength Club
 
 ## Installation & Setup
 
-### 1. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 2. Configure Email Settings
+### Configure Email Settings
 Add email configuration to your `.env` file:
 ```env
 MAIL_SERVER=smtp.gmail.com
@@ -254,7 +249,7 @@ MAIL_FROM_NAME=Strength Club
 2. Generate an App Password (not your regular password)
 3. Use the App Password in `MAIL_PASSWORD`
 
-### 3. Test Email Notifications
+### Test Email Notifications
 1. Complete a discovery flow and provide email in conversation (low priority)
 2. Or request human assistance and fill in escalation form with email (high priority)
 3. Check email inbox for confirmation message
@@ -268,5 +263,3 @@ Potential improvements:
 - Add escalation history tracking
 - Add priority-based sorting in escalation list
 - Add email templates with HTML formatting
-- Add email delivery tracking
-

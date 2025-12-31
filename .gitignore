@@ -2,3 +2,9 @@
 __pycache__/
 *.pyc
 data/.env
+
+# Runtime data
+data/conversations/*
+!data/conversations/.gitkeep
+data/escalations/*
+!data/escalations/.gitkeep

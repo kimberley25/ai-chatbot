@@ -1,6 +1,16 @@
 // Discovery question patterns - data-driven configuration
 // Each pattern has: id, label, options, and match conditions
 
+// Helper function to check if message is after handover (should not show chips)
+function isAfterHandover(msg) {
+    const msgLower = msg.toLowerCase();
+    return msgLower.includes('pass this on') || 
+           msgLower.includes('be in touch') ||
+           msgLower.includes('thanks for sharing') ||
+           msgLower.includes('i\'ve got the following details') ||
+           msgLower.includes('we will be in touch');
+}
+
 const DISCOVERY_PATTERNS = [
     {
         id: 'package-type',
@@ -51,14 +61,10 @@ const DISCOVERY_PATTERNS = [
             { value: 'Not sure / open to recommendations', text: 'Not sure / open to recommendations' }
         ],
         match: (msg) => {
+            if (isAfterHandover(msg)) return false;
+            
             // Check-in frequency is ONLY asked for NUTRITION coaching (Flow 3)
             // NOT for training flows (Flow 1 and Flow 2)
-            
-            // Must be in nutrition context
-            const isNutritionContext = msg.includes('nutrition');
-            if (!isNutritionContext) {
-                return false;
-            }
             
             // Don't match if this is a services listing or general information
             if (msg.includes('we offer') || 
@@ -74,11 +80,21 @@ const DISCOVERY_PATTERNS = [
                 return false;
             }
             
+            // Don't match training/strength/competition flow questions
+            if (msg.includes('club coaching') || 
+                msg.includes('online coaching') ||
+                msg.includes('training experience') ||
+                msg.includes('competed before') ||
+                msg.includes('competition')) {
+                return false;
+            }
+            
             // Combined positive checks for better performance
             const hasCheckIn = (msg.includes('check') && msg.includes('in')) ||
                               msg.includes('check-in') || 
                               msg.includes('checkin');
             const hasFrequency = msg.includes('how often') || msg.includes('frequency');
+            const hasSupport = msg.includes('support') || msg.includes('like support');
             const hasOptions = msg.includes('weekly or fortnightly') ||
                               msg.includes('fortnightly or weekly') ||
                               msg.includes('prefer weekly or fortnightly');
@@ -87,17 +103,22 @@ const DISCOVERY_PATTERNS = [
                               msg.includes('do you') ||
                               msg.includes('prefer');
             
-            // Primary match: "how often" + "check in" in nutrition context
+            // Primary match: "how often" + "check in"
             if (hasFrequency && hasCheckIn) {
                 return true;
             }
             
-            // Secondary match: "how often" in nutrition context (must be a question)
+            // Secondary match: "how often" + "support" (must be a question)
+            if (hasFrequency && hasSupport && isQuestion) {
+                return true;
+            }
+            
+            // Tertiary match: "how often" as a question (after goal selection)
             if (hasFrequency && isQuestion) {
                 return true;
             }
             
-            // Match explicit options in nutrition context
+            // Match explicit options
             return hasOptions;
         },
         priority: 20
@@ -108,18 +129,30 @@ const DISCOVERY_PATTERNS = [
         options: [
             { value: 'Beginner', text: 'Beginner' },
             { value: 'Intermediate', text: 'Intermediate' },
-            { value: 'Advanced or Competitive', text: 'Advanced or Competitive' }
+            { value: 'Advanced', text: 'Advanced' }
         ],
         match: (msg) => {
+            if (isAfterHandover(msg)) return false;
+            
+            const msgLower = msg.toLowerCase();
+            
+            // Don't match if this is FLOW 1 ROUTE C or FLOW 2 ROUTE D (choice messages)
+            const isRouteC = msgLower.includes('with your experience level') && 
+                           msgLower.includes('club coaching is usually the best option') &&
+                           msgLower.includes('what would you like to go with');
+            const isRouteD = msgLower.includes('with your competition experience') && 
+                           msgLower.includes('club coaching is usually the best option') &&
+                           msgLower.includes('what would you like to go with');
+            
+            if (isRouteC || isRouteD) return false;
+            
             return msg.includes('training experience') ||
                    msg.includes('experience level') ||
                    msg.includes('what is your experience') ||
                    msg.includes('describe your training experience') ||
-                   msg.includes('let me know your training experience') ||
                    msg.includes('are you a beginner') ||
                    msg.includes('beginner, intermediate') ||
-                   msg.includes('advanced/competitive') ||
-                   msg.includes('advanced or competitive');
+                   msg.includes('advanced');
         },
         priority: 30
     },
@@ -132,6 +165,8 @@ const DISCOVERY_PATTERNS = [
             { value: 'Not sure / open to recommendations', text: 'Not sure / open to recommendations' }
         ],
         match: (msg) => {
+            if (isAfterHandover(msg)) return false;
+            
             const msgLower = msg.toLowerCase();
             
             // Don't match if this is a recommendation message (handled by sounds-good-recommendation)
@@ -139,6 +174,15 @@ const DISCOVERY_PATTERNS = [
                                    msgLower.includes('i\'d go with') &&
                                    msgLower.includes('suits you because');
             if (isRecommendation) return false;
+            
+            // Don't match if this is FLOW 1 ROUTE C or FLOW 2 ROUTE D (specific choice messages)
+            const isRouteC = msgLower.includes('with your experience level') && 
+                           msgLower.includes('club coaching is usually the best option') &&
+                           msgLower.includes('what would you like to go with');
+            const isRouteD = msgLower.includes('with your competition experience') && 
+                           msgLower.includes('club coaching is usually the best option') &&
+                           msgLower.includes('what would you like to go with');
+            if (isRouteC || isRouteD) return false;
             
             const isAskingAboutCoachingMode = msgLower.includes('online coaching') || msgLower.includes('in-person coaching');
             const hasOnlineAndInPerson = msgLower.includes('online') && msgLower.includes('in-person');
@@ -162,6 +206,34 @@ const DISCOVERY_PATTERNS = [
                      msgLower.includes('open to') || msgLower.includes('would you') || msgLower.includes('works better')));
         },
         priority: 60
+    },
+    {
+        id: 'flow1-route-c-choice',
+        label: 'What would you like to go with?',
+        options: [
+            { value: 'Club Coaching', text: 'Club Coaching' },
+            { value: 'Online Coaching', text: 'Online Coaching' },
+            { value: 'Talk to a coach', text: 'Talk to a coach' }
+        ],
+        match: (msg) => {
+            // DISABLED - Users should type their response instead of using chips
+            return false;
+        },
+        priority: 2
+    },
+    {
+        id: 'flow2-route-d-choice',
+        label: 'What would you like to go with?',
+        options: [
+            { value: 'Club Coaching', text: 'Club Coaching' },
+            { value: 'Online Coaching', text: 'Online Coaching' },
+            { value: 'Talk to a coach', text: 'Talk to a coach' }
+        ],
+        match: (msg) => {
+            // DISABLED - Users should type their response instead of using chips
+            return false;
+        },
+        priority: 2
     },
     {
         id: 'coaching-preference-after-suggestion',
@@ -194,7 +266,8 @@ const DISCOVERY_PATTERNS = [
             { value: 'I need help with nutrition', text: 'Nutrition Coaching' }
         ],
         match: (msg) => {
-            // Optimization #3: Early returns, combine checks
+            if (isAfterHandover(msg)) return false;
+            
             // Don't match on welcome messages
             if (msg.includes('welcome') && 
                 (msg.includes('what can i help') || msg.includes('questions about'))) {
@@ -262,23 +335,6 @@ const DISCOVERY_PATTERNS = [
         priority: 5  // Higher priority than package-type (10) and check-in-frequency (20)
     },
     {
-        id: 'one-to-one-addon',
-        label: 'Would you like to add 1-to-1 coaching?',
-        options: [
-            { value: 'Yes, add on 1-to-1 coaching', text: 'Yes, add on 1-to-1 coaching' },
-            { value: 'No, not right now', text: 'No, not right now' }
-        ],
-        match: (msg) => {
-            const msgLower = msg.toLowerCase();
-            const hasOneToOne = msgLower.includes('1-to-1') || msgLower.includes('one-to-one');
-            const hasAdd = msgLower.includes('add-on') || msgLower.includes('adding') || msgLower.includes('interested in adding') || msgLower.includes('add');
-            const hasQuestion = msg.includes('?') || msgLower.includes('would you') || msgLower.includes('what do you think');
-            
-            return hasOneToOne && hasAdd && hasQuestion;
-        },
-        priority: 95
-    },
-    {
         id: 'nutrition-goal',
         label: 'What is your nutrition goal?',
         options: [
@@ -287,6 +343,8 @@ const DISCOVERY_PATTERNS = [
             { value: 'Maintain weight / healthier lifestyle', text: 'Maintain weight / healthier lifestyle' },
         ],
         match: (msg) => {
+            if (isAfterHandover(msg)) return false;
+            
             // Don't match on goal classification or services explanation
             const isGoalClassification = msg.includes('point you in the right direction') ||
                                         (msg.includes('mainly looking for') && msg.includes('right now')) ||
@@ -472,72 +530,7 @@ const DISCOVERY_PATTERNS = [
         priority: 25  // After check-in frequency (20) but before other questions
     },
     {
-        id: 'program-structure-followup',
-        label: 'What feels unclear about your program right now?',
-        options: [
-            { value: 'I\'m not sure how to progress', text: 'I\'m not sure how to progress' },
-            { value: 'I need a structured program', text: 'I need a structured program' },
-            { value: 'Not sure yet', text: 'Not sure yet' }
-        ],
-        match: (msg) => {
-            return msg.includes('what feels unclear about your program') ||
-                   (msg.includes('unclear') && msg.includes('program') && msg.includes('right now'));
-        },
-        priority: 22
-    },
-    {
-        id: 'slow-progress-followup',
-        label: 'What do you feel is holding your progress back most?',
-        options: [
-            { value: 'Strength isn\'t increasing / stuck', text: 'Strength isn\'t increasing / stuck' },
-            { value: 'I\'m inconsistent', text: 'I\'m inconsistent' },
-            { value: 'Not sure yet', text: 'Not sure yet' }
-        ],
-        match: (msg) => {
-            return msg.includes('what do you feel is holding your progress back') ||
-                   (msg.includes('holding') && msg.includes('progress back') && msg.includes('most'));
-        },
-        priority: 22
-    },
-    {
-        id: 'technique-form-followup',
-        label: 'What would you like help with most?',
-        options: [
-            { value: 'Not confident with my form', text: 'Not confident with my form' },
-            { value: 'Feedback on lifts', text: 'Feedback on lifts' },
-            { value: 'Not sure yet', text: 'Not sure yet' }
-        ],
-        match: (msg) => {
-            // Match when asking about help with technique/form
-            // Check for the question AND context indicating technique/form
-            return msg.includes('what would you like help with most') &&
-                   (msg.includes('technique') || msg.includes('form') || 
-                    msg.includes('lift') || msg.includes('feedback'));
-        },
-        priority: 22
-    },
-    {
-        id: 'staying-consistent-followup-strength',
-        label: 'What kind of support would help you most right now?',
-        options: [
-            { value: 'Regular accountability', text: 'Regular accountability' },
-            { value: 'Some guidance', text: 'Some guidance' },
-            { value: 'Not sure yet', text: 'Not sure yet' }
-        ],
-        match: (msg) => {
-            // Match when asking about support for staying consistent
-            // Exclude nutrition context (nutrition has its own accountability question)
-            const isNutritionContext = msg.includes('nutrition') && 
-                                      (msg.includes('struggle') || msg.includes('accountability'));
-            
-            return (msg.includes('what kind of support would help you most right now') ||
-                   msg.includes('what kind of support would help you stay on track') ||
-                   (msg.includes('what kind of support') && msg.includes('help you'))) &&
-                   !isNutritionContext;
-        },
-        priority: 22
-    },
-    {
+
         id: 'strength-purpose',
         label: 'Are you getting stronger for general health or to prepare for a competition?',
         options: [
@@ -560,44 +553,32 @@ const DISCOVERY_PATTERNS = [
             { value: 'Sounds good', text: 'Sounds good' }
         ],
         match: (msg) => {
-            // Match when bot recommends Weekly Online Coaching without asking a question
-            // This is for the first message in the two-step recommendation flow
-            // Must have HIGHER priority (lower number) than coaching-preference (60) to match first
+            // Match ONLY when bot recommends Weekly Online Coaching WITHOUT any follow-up questions
+            // This MUST be strict to ensure it's ONLY the first message, not combined with 1-to-1 add-on
             const msgLower = msg.toLowerCase();
+            
+            // Must have the recommendation structure
             const isRecommendation = msgLower.includes('from what you\'ve told me') && 
                                    msgLower.includes('i\'d go with');
             const hasWeeklyOnlineCoaching = msgLower.includes('weekly online coaching');
             const hasReason = msgLower.includes('suits you because') || 
                             msgLower.includes('because it focuses');
-            const noQuestion = !msg.includes('?') && 
-                             !msgLower.includes('what do you think') &&
-                             !msgLower.includes('does this sound') &&
-                             !msgLower.includes('would you prefer');
             
-            return isRecommendation && hasWeeklyOnlineCoaching && hasReason && noQuestion;
+            // STRICT: Reject if ANY follow-up questions are present
+            const hasNoFollowUp = !msg.includes('?') &&
+                                 !msgLower.includes('what do you think') &&
+                                 !msgLower.includes('does this sound') &&
+                                 !msgLower.includes('does this suit') &&
+                                 !msgLower.includes('would you prefer') &&
+                                 !msgLower.includes('would you like to add') &&
+                                 !msgLower.includes('1-to-1') &&
+                                 !msgLower.includes('technique work') &&
+                                 !msgLower.includes('flexible and optional') &&
+                                 !msgLower.includes('book sessions');
+            
+            return isRecommendation && hasWeeklyOnlineCoaching && hasReason && hasNoFollowUp;
         },
         priority: 50  // Higher priority than coaching-preference (60) - lower number = higher priority
-    },
-    {
-        id: 'does-this-suit-you',
-        label: 'Does this suit you?',
-        options: [
-            { value: 'Yes, this suits me', text: 'Yes, this suits me' },
-            { value: 'No, I\'d prefer something else', text: 'No, I\'d prefer something else' }
-        ],
-        match: (msg) => {
-            // Don't match if this is asking about adding 1-to-1 coaching (handled by one-to-one-addon pattern)
-            const isOneToOneAddonQuestion = (msg.includes('1-to-1') || msg.includes('one-to-one')) &&
-                                           (msg.includes('add') || msg.includes('add-on') || msg.includes('adding'));
-            
-            if (isOneToOneAddonQuestion) {
-                return false;
-            }
-            
-            return msg.includes('does this suit you') ||
-                   (msg.includes('suit you') && msg.includes('?'));
-        },
-        priority: 92
     },
     {
         id: 'beginner-coaching-choice',
@@ -617,6 +598,42 @@ const DISCOVERY_PATTERNS = [
         },
         priority: 88
     },
+    {
+        id: 'coach-handover-confirmation',
+        label: 'Would you like to chat with a coach?',
+        options: [
+            { value: 'Yes, connect me', text: 'Yes, connect me' },
+            { value: 'Not right now', text: 'Not right now' }
+        ],
+        match: (msg) => {
+            const msgLower = msg.toLowerCase();
+            // Match when bot asks if user wants to connect with a coach
+            const hasCoachMention = msgLower.includes('chat with a coach') || 
+                                   msgLower.includes('connect you with a coach') ||
+                                   msgLower.includes('talk with a coach') ||
+                                   msgLower.includes('connect with a coach');
+            const hasQuestion = msg.includes('?');
+            const hasNoPressure = msgLower.includes('no pressure') || 
+                                 msgLower.includes('quick conversation') ||
+                                 msgLower.includes('would you like');
+            
+            return hasCoachMention && hasQuestion && hasNoPressure;
+        },
+        priority: 15
+    },
+    {
+        id: 'recommendation-confirmation',
+        label: 'Does this suit you?',
+        options: [
+            { value: 'Yes, sounds good', text: 'Yes, sounds good' },
+            { value: 'Not sure', text: 'Not sure' }
+        ],
+        match: (msg) => {
+            // DISABLED - Users should type their response instead of using chips
+            return false;
+        },
+        priority: 12
+    },
 ];
 
 // Pre-sort patterns by priority once (performance optimization)
@@ -627,13 +644,12 @@ const SORTED_DISCOVERY_PATTERNS = [...DISCOVERY_PATTERNS].sort((a, b) => a.prior
 // This allows checking only relevant patterns based on conversation context
 const PATTERN_GROUPS = {
     general: ['services-interest', 'strength-purpose', 'training-experience', 'coaching-preference'],
-    strength: ['program-structure-followup', 'slow-progress-followup', 'technique-form-followup', 
-               'staying-consistent-followup-strength', 'struggles', 'beginner-coaching-choice'],
-    competition: ['competed-before', 'package-type', 'does-this-suit-you'],
+    strength: ['struggles', 'beginner-coaching-choice'],
+    competition: ['competed-before', 'package-type'],
     nutrition: ['nutrition-goal', 'nutrition-struggles-direct', 'nutrition-structure-checkins',
                 'nutrition-guidance-preference', 'nutrition-consistency-checkins', 
                 'nutrition-meal-planning-preference', 'check-in-frequency'],
-    common: ['one-to-one-addon']
+    common: ['recommendation-confirmation', 'coach-handover-confirmation']
 };
 
 // Create lookup map for quick pattern access by ID (future optimization)

@@ -82,5 +82,6 @@ def is_handover_confirmation(message: str) -> bool:
     # Must contain "Name:" and "Mobile:" at minimum
     has_name = re.search(r"Name:\s*.+", message, re.IGNORECASE)
     has_mobile = re.search(r"Mobile:\s*.+", message, re.IGNORECASE)
+    has_email = re.search(r"Email:\s*.+", message, re.IGNORECASE)
 
     return bool(has_name and has_mobile)
