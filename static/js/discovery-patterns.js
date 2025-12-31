@@ -108,18 +108,16 @@ const DISCOVERY_PATTERNS = [
         options: [
             { value: 'Beginner', text: 'Beginner' },
             { value: 'Intermediate', text: 'Intermediate' },
-            { value: 'Advanced or Competitive', text: 'Advanced or Competitive' }
+            { value: 'Advanced', text: 'Advanced' }
         ],
         match: (msg) => {
             return msg.includes('training experience') ||
                    msg.includes('experience level') ||
                    msg.includes('what is your experience') ||
                    msg.includes('describe your training experience') ||
-                   msg.includes('let me know your training experience') ||
                    msg.includes('are you a beginner') ||
                    msg.includes('beginner, intermediate') ||
-                   msg.includes('advanced/competitive') ||
-                   msg.includes('advanced or competitive');
+                   msg.includes('advanced');
         },
         priority: 30
     },
