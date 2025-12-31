@@ -33,11 +33,15 @@
                     <!-- Initial welcome message will be populated by JavaScript -->
                 </div>
                 <div class="suggestions">
-                    <button class="suggestion-btn" onclick="usePrompt('What services do you offer?')">Our Services</button>
-                    <button class="suggestion-btn" onclick="usePrompt('I want to get stronger')">Build Strength</button>
-                    <button class="suggestion-btn" onclick="usePrompt('I want to compete')">Competition Preparation</button>
-                    <button class="suggestion-btn" onclick="usePrompt('I need help with nutrition')">Nutrition</button>
-                    <button class="suggestion-btn" onclick="usePrompt('I want to talk to a coach')"> Talk to a Coach</button>
+                    <div class="suggestions-row">
+                        <button class="suggestion-btn suggestion-btn-primary" onclick="usePrompt('I want to get stronger')">Build Strength</button>
+                        <button class="suggestion-btn suggestion-btn-primary" onclick="usePrompt('I want to compete')">Competition Preparation</button>
+                        <button class="suggestion-btn suggestion-btn-primary" onclick="usePrompt('I need help with nutrition')">Nutrition</button>
+                    </div>
+                    <div class="suggestions-row suggestions-row-secondary">
+                        <button class="suggestion-btn suggestion-btn-secondary" onclick="usePrompt('What services do you offer?')">Our Services</button>
+                        <button class="suggestion-btn suggestion-btn-secondary" onclick="usePrompt('I want to speak to a coach')">Talk to a Coach</button>
+                    </div>
                 </div>
                 <!-- Typing indicator - avatar populated by JavaScript -->
                 <div class="typing-indicator" id="typingIndicator" style="display: none;">
