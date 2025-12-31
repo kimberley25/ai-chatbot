@@ -269,4 +269,3 @@ Potential improvements:
 - Add priority-based sorting in escalation list
 - Add email templates with HTML formatting
 - Add email delivery tracking
-
